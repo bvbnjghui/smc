@@ -7,10 +7,15 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 // 使用幣安公開 API，因此不需要 API 金鑰
-// 若未來需要更高的頻率限制或交易功能，則需在此處設定金鑰
 const binance = new Binance();
 
-app.use(cors()); // 啟用 CORS，允許前端呼叫
+// 使用更明確的 CORS 配置
+const corsOptions = {
+  origin: '*', // 允許所有來源
+  methods: ['GET'], // 僅允許 GET 請求
+};
+app.use(cors(corsOptions));
+console.log('CORS 中介軟體已啟用，允許所有來源');
 
 // 根路由，用於健康檢查
 app.get('/', (req, res) => {
@@ -18,7 +23,6 @@ app.get('/', (req, res) => {
 });
 
 // API 路由：獲取 K 線數據
-// 範例: /api/klines?symbol=BTCUSDT&interval=15m&limit=500
 app.get('/api/klines', async (req, res) => {
   const { symbol, interval, limit = 500 } = req.query;
 
@@ -27,16 +31,13 @@ app.get('/api/klines', async (req, res) => {
   }
 
   try {
-    // 從幣安獲取 K 線數據
     const klines = await binance.candlesticks(symbol.toUpperCase(), interval, { limit });
     
-    // 檢查回傳的數據是否為空，若為空則返回一個空陣列
     if (!klines || klines.length === 0) {
       console.log(`未找到 ${symbol} 的 K 線數據`);
       return res.json([]);
     }
 
-    // 目前我們先回傳原始數據，後續會在此處加入 SMC 策略分析邏輯
     res.json(klines);
   } catch (error) {
     console.error('獲取 K 線數據失敗:', error);
