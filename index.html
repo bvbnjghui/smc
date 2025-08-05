@@ -9,7 +9,7 @@
     <!-- TradingView Lightweight Charts CDN -->
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <!-- Alpine.js CDN for interactivity -->
-    <!-- 這裡加入了 defer 屬性，確保 Alpine.js 在 DOM 載入後才執行，避免綁定錯誤 -->
+    <!-- 修正 defer 屬性的位置 -->
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <style>
         body {
@@ -140,7 +140,9 @@
                     try {
                         const response = await fetch(`${this.apiUrl}?symbol=${this.symbol}&interval=${this.interval}`);
                         if (!response.ok) {
-                            throw new Error(`API 請求失敗: ${response.statusText}`);
+                            // 檢查狀態碼，如果不是 2xx，拋出錯誤
+                            const errorText = await response.text();
+                            throw new Error(`API 請求失敗，狀態碼: ${response.status}. 回應: ${errorText}`);
                         }
                         const rawData = await response.json();
                         
