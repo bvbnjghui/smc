@@ -9,8 +9,8 @@
     <!-- TradingView Lightweight Charts CDN -->
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <!-- Alpine.js CDN for interactivity -->
-    <!-- 這裡我們加入了 defer 屬性，確保 Alpine.js 在 DOM 載入後才執行，避免綁定錯誤 -->
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- 這裡加入了 defer 屬性，確保 Alpine.js 在 DOM 載入後才執行，避免綁定錯誤 -->
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -57,7 +57,7 @@
     <script>
         function app() {
             return {
-                // 請將此處替換為您 Cloud Run 服務的 URL
+                // 已更新為您提供的 Cloud Run 服務 URL
                 apiUrl: 'https://smc-338857749184.europe-west1.run.app/api/klines',
                 symbol: 'BTCUSDT',
                 interval: '15m',
