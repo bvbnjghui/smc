@@ -30,6 +30,12 @@ app.get('/api/klines', async (req, res) => {
     // 從幣安獲取 K 線數據
     const klines = await binance.candlesticks(symbol.toUpperCase(), interval, { limit });
     
+    // 檢查回傳的數據是否為空，若為空則返回一個空陣列
+    if (!klines || klines.length === 0) {
+      console.log(`未找到 ${symbol} 的 K 線數據`);
+      return res.json([]);
+    }
+
     // 目前我們先回傳原始數據，後續會在此處加入 SMC 策略分析邏輯
     res.json(klines);
   } catch (error) {
