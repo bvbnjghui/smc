@@ -76,12 +76,18 @@
                 volumeSeries: null,
 
                 init() {
+                    // 確保在 DOM 元素準備好後才初始化圖表
                     this.setupChart();
                     this.fetchData();
                 },
 
                 setupChart() {
                     const container = document.getElementById('chart');
+                    // 這裡增加一個檢查，確保容器元素存在
+                    if (!container) {
+                        console.error("找不到 ID 為 'chart' 的元素");
+                        return;
+                    }
                     this.chart = LightweightCharts.createChart(container, {
                         layout: {
                             background: { color: '#1f2937' },
