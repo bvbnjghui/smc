@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMC 策略分析儀</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- TradingView Lightweight Charts CDN -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- Alpine.js CDN for interactivity -->
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #chart {
+            height: 600px;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200 p-8">
+
+    <div class="max-w-7xl mx-auto" x-data="app()">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-teal-400 mb-2">SMC 策略分析儀</h1>
+            <p class="text-lg text-gray-400">即時分析虛擬貨幣市場的價格與流動性</p>
+        </header>
+
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-lg mb-8">
+            <div class="flex flex-wrap items-center justify-center space-y-4 md:space-y-0 md:space-x-6">
+                <div class="flex items-center space-x-2">
+                    <label for="symbol" class="text-gray-400">交易對:</label>
+                    <input type="text" id="symbol" x-model="symbol" class="p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 w-32 text-gray-50 uppercase">
+                </div>
+                <div class="flex items-center space-x-2">
+                    <label for="interval" class="text-gray-400">週期:</label>
+                    <select id="interval" x-model="interval" class="p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                        <template x-for="option in intervals">
+                            <option :value="option.value" x-text="option.label"></option>
+                        </template>
+                    </select>
+                </div>
+                <button @click="fetchData" :disabled="isLoading" class="bg-teal-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-teal-700 transition duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!isLoading">載入數據</span>
+                    <span x-show="isLoading">載入中...</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="chart" class="bg-gray-800 rounded-2xl shadow-lg"></div>
+
+        <div x-show="error" class="bg-red-900 text-red-200 p-4 rounded-xl mt-8 text-center" x-text="error"></div>
+    </div>
+
+    <script>
+        function app() {
+            return {
+                // 請將此處替換為您 Cloud Run 服務的 URL
+                apiUrl: 'https://your-cloud-run-service-url.a.run.app/api/klines',
+                symbol: 'BTCUSDT',
+                interval: '15m',
+                intervals: [
+                    { value: '1m', label: '1 分鐘' },
+                    { value: '5m', label: '5 分鐘' },
+                    { value: '15m', label: '15 分鐘' },
+                    { value: '1h', label: '1 小時' },
+                    { value: '4h', label: '4 小時' },
+                    { value: '1d', label: '1 日' },
+                ],
+                isLoading: false,
+                error: '',
+                chart: null,
+                candleSeries: null,
+                volumeSeries: null,
+
+                init() {
+                    this.setupChart();
+                    this.fetchData();
+                },
+
+                setupChart() {
+                    const container = document.getElementById('chart');
+                    this.chart = LightweightCharts.createChart(container, {
+                        layout: {
+                            background: { color: '#1f2937' },
+                            textColor: '#d1d5db',
+                        },
+                        grid: {
+                            vertLines: { color: '#374151' },
+                            horzLines: { color: '#374151' },
+                        },
+                        rightPriceScale: {
+                            borderColor: '#4b5563',
+                        },
+                        timeScale: {
+                            borderColor: '#4b5563',
+                        },
+                    });
+
+                    this.candleSeries = this.chart.addCandlestickSeries({
+                        upColor: '#10b981',
+                        downColor: '#ef4444',
+                        borderUpColor: '#10b981',
+                        borderDownColor: '#ef4444',
+                        wickUpColor: '#10b981',
+                        wickDownColor: '#ef4444',
+                    });
+
+                    this.volumeSeries = this.chart.addHistogramSeries({
+                        color: '#26a69a',
+                        priceFormat: {
+                            type: 'volume',
+                        },
+                        overlay: true,
+                        scaleMargins: {
+                            top: 0.8,
+                            bottom: 0,
+                        },
+                    });
+
+                    // 自動調整大小
+                    new ResizeObserver(entries => {
+                        if (entries.length === 0 || entries[0].target.offsetHeight === 0) {
+                            return;
+                        }
+                        this.chart.applyOptions({ height: entries[0].target.offsetHeight });
+                    }).observe(container);
+
+                    this.chart.applyOptions({
+                        width: container.clientWidth,
+                        height: 600
+                    });
+                },
+
+                async fetchData() {
+                    this.isLoading = true;
+                    this.error = '';
+                    try {
+                        const response = await fetch(`${this.apiUrl}?symbol=${this.symbol}&interval=${this.interval}`);
+                        if (!response.ok) {
+                            throw new Error(`API 請求失敗: ${response.statusText}`);
+                        }
+                        const rawData = await response.json();
+                        
+                        // 轉換數據格式以符合 TradingView Lightweight Charts
+                        const candles = rawData.map(d => ({
+                            time: d[0] / 1000, // 將毫秒轉換為秒
+                            open: parseFloat(d[1]),
+                            high: parseFloat(d[2]),
+                            low: parseFloat(d[3]),
+                            close: parseFloat(d[4]),
+                        }));
+                        
+                        const volumes = rawData.map(d => ({
+                            time: d[0] / 1000,
+                            value: parseFloat(d[5]),
+                            color: parseFloat(d[4]) >= parseFloat(d[1]) ? '#10b981' : '#ef4444',
+                        }));
+
+                        this.candleSeries.setData(candles);
+                        this.volumeSeries.setData(volumes);
+
+                    } catch (e) {
+                        this.error = `載入數據失敗: ${e.message}`;
+                        console.error(e);
+                    } finally {
+                        this.isLoading = false;
+                    }
+                }
+            }
+        }
+    </script>
+
+</body>
+</html>
