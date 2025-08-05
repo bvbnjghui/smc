@@ -6,12 +6,9 @@ const app = express();
 // Cloud Run 會自動設定 PORT 環境變數
 const port = process.env.PORT || 8080;
 
-// 請在此處填寫您的 Binance API 金鑰與密鑰
-// 為了安全，您也可以在部署到 Cloud Run 時，將這些設定為環境變數
-const binance = new Binance().options({
-  apiKey: '<您的 API Key>',
-  apiSecret: '<您的 Secret Key>',
-});
+// 使用幣安公開 API，因此不需要 API 金鑰
+// 若未來需要更高的頻率限制或交易功能，則需在此處設定金鑰
+const binance = new Binance();
 
 app.use(cors()); // 啟用 CORS，允許前端呼叫
 
