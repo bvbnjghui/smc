@@ -4,15 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SMC 策略分析儀</title>
+
+    <!-- PWA 相關設定 -->
+    <link rel="manifest" href="/smc/manifest.json">
+    <meta name="theme-color" content="#10b981">
+
     <!-- Tailwind CSS CDN for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lightweight Charts CDN (v3.8.0) -->
     <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
     
     <!-- Alpine.js & Plugins -->
-    <!-- ** 修正：在主函式庫之前，先載入 Collapse 外掛 ** -->
     <script src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-    <script src="main.js" defer></script>
+    <script src="/smc/main.js" defer></script>
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
     <style>
@@ -153,6 +157,19 @@
         </footer>
 
     </div>
+    
+    <!-- PWA Service Worker 註冊腳本 -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/smc/sw.js').then(registration => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
 
 </body>
 </html>
