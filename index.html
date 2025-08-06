@@ -61,7 +61,12 @@
             </div>
         </div>
 
-        <div id="chart" class="bg-gray-800 rounded-2xl shadow-lg"></div>
+        <!-- ** 修正：新增包裝容器以優化行動裝置的圖表顯示 ** -->
+        <!-- Wrapper to enable horizontal scrolling on small screens -->
+        <div class="overflow-x-auto bg-gray-800 rounded-2xl shadow-lg">
+            <!-- Chart container with a minimum width to prevent candlesticks from being too squished -->
+            <div id="chart" class="min-w-[900px]"></div>
+        </div>
 
         <div x-show="error" class="bg-red-900 text-red-200 p-4 rounded-xl mt-8 text-center" x-text="error"></div>
 
@@ -146,7 +151,7 @@
                             </ul>
                         </div>
                     </div>
-                    <!-- ** 新增：如何設定多空策略 (進階) ** -->
+                    <!-- 如何設定多空策略 (進階) -->
                     <div>
                         <button @click="open = open === 'advanced' ? '' : 'advanced'" class="w-full text-left">
                              <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
