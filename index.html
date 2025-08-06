@@ -65,7 +65,8 @@
         <!-- Wrapper to enable horizontal scrolling on small screens -->
         <div class="overflow-x-auto bg-gray-800 rounded-2xl shadow-lg">
             <!-- Chart container with a minimum width to prevent candlesticks from being too squished -->
-            <div id="chart" class="min-w-[900px]"></div>
+            <!-- ** 修正：增加圖表最小寬度至 1200px ** -->
+            <div id="chart" class="min-w-[1200px]"></div>
         </div>
 
         <div x-show="error" class="bg-red-900 text-red-200 p-4 rounded-xl mt-8 text-center" x-text="error"></div>
