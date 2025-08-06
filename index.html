@@ -38,6 +38,15 @@
         .toggle-checkbox:checked + .toggle-label {
             background-color: #10b981;
         }
+        /* ** 新增：隱藏側邊欄捲軸的 CSS ** */
+        .sidebar-content::-webkit-scrollbar {
+            width: 0px;
+            background: transparent; /* make scrollbar transparent */
+        }
+        .sidebar-content {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-200">
@@ -49,8 +58,9 @@
             :class="{ 'translate-x-0': isSidebarOpen, '-translate-x-full': !isSidebarOpen }"
         >
             <div class="p-4 flex flex-col h-full">
-                <h2 class="text-2xl font-bold text-teal-400 mb-6">設定</h2>
-                <div class="space-y-6 flex-grow">
+                <h2 class="text-2xl font-bold text-teal-400 mb-6 flex-shrink-0">設定</h2>
+                <!-- ** 修正：新增 sidebar-content class 以套用隱藏捲軸的樣式 ** -->
+                <div class="space-y-6 flex-grow overflow-y-auto pr-2 sidebar-content">
                     <div class="space-y-2">
                         <label for="symbol-preset" class="text-gray-400">交易對:</label>
                         <select id="symbol-preset" x-model="selectedPreset" @change="stopAutoUpdate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase">
@@ -74,7 +84,6 @@
                         </select>
                     </div>
                     
-                    <!-- ** 新增：回測模式區塊 ** -->
                     <div class="space-y-4 pt-4 border-t border-gray-700">
                         <div class="flex items-center justify-between text-gray-400">
                             <span>回測模式</span>
@@ -133,7 +142,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="mt-auto">
+                <div class="mt-auto flex-shrink-0">
                      <button @click="isHelpModalOpen = true; isSidebarOpen = false" class="w-full text-left text-gray-300 hover:bg-gray-700 hover:text-white p-3 rounded-md flex items-center space-x-2">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.79 4 4 0 1.152-.468 2.19-1.228 2.967-.76.776-1.805 1.287-3.033 1.615A2.25 2.25 0 0113 18h-1a2.25 2.25 0 01-2.25-2.25V15.25a2.25 2.25 0 011.5-2.122zM12 6v.01M12 18v.01"></path></svg>
                         <span>如何解讀圖表?</span>
@@ -274,6 +283,26 @@
                                 <li><strong class="text-green-400">看漲 FVG (綠色虛線)</strong>: 價格快速上漲時留下的真空地帶。</li>
                                 <li>當訂單塊 (OB) 和 FVG 重疊時，該區域的支撐或壓力會非常強大。</li>
                             </ul>
+                        </div>
+                    </div>
+                    <!-- ** 新增：回測模式說明 ** -->
+                    <div class="border-b border-gray-700 pb-2">
+                        <button @click="open = open === 'backtest' ? '' : 'backtest'" class="w-full text-left">
+                            <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
+                                <span>如何使用回測模式</span>
+                                <span x-show="open !== 'backtest'">&#9662;</span>
+                                <span x-show="open === 'backtest'">&#9652;</span>
+                            </h3>
+                        </button>
+                        <div x-show="open === 'backtest'" x-collapse class="mt-2 text-gray-300 space-y-2">
+                            <p>回測模式能讓您載入特定歷史時間區段的 K 線數據，並觀察 SMC 指標在當時的表現。操作步驟如下：</p>
+                            <ol class="list-decimal list-inside space-y-1">
+                                <li><strong>啟用回測模式</strong>：在側邊欄中，找到「回測模式」的開關並將其啟用。</li>
+                                <li><strong>選擇日期範圍</strong>：啟用後，下方會出現「開始日期」和「結束日期」的選擇器，請選擇您想要回測的歷史區間。</li>
+                                <li><strong>執行回測</strong>：點擊側邊欄中的「執行回測」按鈕。</li>
+                                <li><strong>分析圖表</strong>：圖表將會載入您指定時間範圍內的歷史數據，您可以縮放、平移圖表來研究過去的市場結構。</li>
+                                <li><strong>恢復即時模式</strong>：完成回測後，只需關閉「回測模式」開關，然後點擊「載入數據」按鈕，即可恢復。</li>
+                            </ol>
                         </div>
                     </div>
                     <!-- 如何設定多空策略 (進階) -->
