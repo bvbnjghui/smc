@@ -52,14 +52,24 @@
                 <h2 class="text-2xl font-bold text-teal-400 mb-6">設定</h2>
                 <div class="space-y-6 flex-grow">
                     <div class="space-y-2">
-                        <label for="symbol" class="text-gray-400">交易對:</label>
-                        <input type="text" id="symbol" x-model="symbol" @change="stopAutoUpdate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase">
+                        <label for="symbol-preset" class="text-gray-400">交易對:</label>
+                        <select id="symbol-preset" x-model="selectedPreset" @change="stopAutoUpdate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase">
+                            <template x-for="preset in commonSymbols">
+                                <option :value="preset" x-text="preset" :selected="preset === selectedPreset"></option>
+                            </template>
+                            <option value="CUSTOM" :selected="'CUSTOM' === selectedPreset">其他...</option>
+                        </select>
                     </div>
+                    <div x-show="selectedPreset === 'CUSTOM'" class="space-y-2">
+                        <label for="custom-symbol" class="text-gray-400">自訂交易對:</label>
+                        <input type="text" id="custom-symbol" x-model="customSymbol" @change="stopAutoUpdate" placeholder="例如：BNBUSDT" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase placeholder-gray-500">
+                    </div>
+
                     <div class="space-y-2">
                         <label for="interval" class="text-gray-400">週期:</label>
                         <select id="interval" x-model="interval" @change="stopAutoUpdate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
                             <template x-for="option in intervals">
-                                <option :value="option.value" x-text="option.label"></option>
+                                <option :value="option.value" x-text="option.label" :selected="option.value === interval"></option>
                             </template>
                         </select>
                     </div>
@@ -67,6 +77,31 @@
                         <span x-show="!isLoading">載入數據</span>
                         <span x-show="isLoading">載入中...</span>
                     </button>
+                    <!-- ** 新增：圖表顯示設定 ** -->
+                    <div class="space-y-4 pt-4 border-t border-gray-700">
+                        <h3 class="text-lg font-semibold text-gray-300">圖表顯示</h3>
+                        <div class="flex items-center justify-between text-gray-400">
+                            <span>流動性 (BSL/SSL)</span>
+                            <div class="relative inline-block w-10 align-middle select-none">
+                                <input type="checkbox" id="showLiquidity" x-model="showLiquidity" @change="redrawAllAnalyses" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                <label for="showLiquidity" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-gray-400">
+                            <span>訂單塊 (OB)</span>
+                            <div class="relative inline-block w-10 align-middle select-none">
+                                <input type="checkbox" id="showOrderBlocks" x-model="showOrderBlocks" @change="redrawAllAnalyses" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                <label for="showOrderBlocks" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-gray-400">
+                            <span>公平價值缺口 (FVG)</span>
+                            <div class="relative inline-block w-10 align-middle select-none">
+                                <input type="checkbox" id="showFVGs" x-model="showFVGs" @change="redrawAllAnalyses" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                <label for="showFVGs" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                            </div>
+                        </div>
+                    </div>
                     <div class="flex items-center justify-between space-x-2 text-gray-400 pt-4 border-t border-gray-700">
                         <span>自動更新</span>
                         <div class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
@@ -75,7 +110,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- ** 修正：將說明按鈕移至側邊欄底部 ** -->
                 <div class="mt-auto">
                      <button @click="isHelpModalOpen = true; isSidebarOpen = false" class="w-full text-left text-gray-300 hover:bg-gray-700 hover:text-white p-3 rounded-md flex items-center space-x-2">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.79 4 4 0 1.152-.468 2.19-1.228 2.967-.76.776-1.805 1.287-3.033 1.615A2.25 2.25 0 0113 18h-1a2.25 2.25 0 01-2.25-2.25V15.25a2.25 2.25 0 011.5-2.122zM12 6v.01M12 18v.01"></path></svg>
@@ -100,7 +134,6 @@
 
         <!-- 主內容區 -->
         <main class="p-4 md:p-8">
-            <!-- ** 修正：將 header 設為 sticky，並移除副標題 ** -->
             <header class="sticky top-0 z-30 bg-gray-900/80 backdrop-blur-sm shadow-md py-4 mb-8 flex items-center">
                 <button @click="isSidebarOpen = true" class="p-2 rounded-md hover:bg-gray-700 mr-4">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
@@ -121,7 +154,7 @@
             </footer>
         </main>
 
-        <!-- ** 新增：說明 Modal ** -->
+        <!-- 說明 Modal -->
         <div 
             x-show="isHelpModalOpen" 
             class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
