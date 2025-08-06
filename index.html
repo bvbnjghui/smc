@@ -41,7 +41,6 @@
         </header>
 
         <div class="bg-gray-800 p-4 md:p-6 rounded-2xl shadow-lg mb-8">
-            <!-- ** 修正：使用 flex-col sm:flex-row 和 gap-4 來優化行動裝置排版 ** -->
             <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <div class="flex items-center space-x-2">
                     <label for="symbol" class="text-gray-400">交易對:</label>
@@ -130,7 +129,7 @@
                         </div>
                     </div>
                     <!-- FVG -->
-                    <div>
+                    <div class="border-b border-gray-700 pb-2">
                         <button @click="open = open === 'fvg' ? '' : 'fvg'" class="w-full text-left">
                             <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
                                 <span>3. 公平價值缺口 (FVG - 虛線)</span>
@@ -145,6 +144,37 @@
                                 <li><strong class="text-green-400">看漲 FVG (綠色虛線)</strong>: 價格快速上漲時留下的真空地帶。</li>
                                 <li>當訂單塊 (OB) 和 FVG 重疊時，該區域的支撐或壓力會非常強大。</li>
                             </ul>
+                        </div>
+                    </div>
+                    <!-- ** 新增：如何設定多空策略 (進階) ** -->
+                    <div>
+                        <button @click="open = open === 'advanced' ? '' : 'advanced'" class="w-full text-left">
+                             <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
+                                <span>如何設定多空策略 (進階)</span>
+                                <span x-show="open !== 'advanced'">&#9662;</span>
+                                <span x-show="open === 'advanced'">&#9652;</span>
+                            </h3>
+                        </button>
+                        <div x-show="open === 'advanced'" x-collapse class="mt-2 text-gray-300 space-y-4">
+                            <div class="p-3 bg-yellow-900/50 text-yellow-200 rounded-lg text-sm">
+                                <strong>重要提醒：</strong>以下內容僅為策略教學範例，不構成任何投資建議。所有交易皆有風險，請務必做好個人研究與風險管理。
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold text-green-400">做多策略 (Long Position)</h4>
+                                <ul class="list-disc list-inside space-y-2 mt-2">
+                                    <li><strong>進場點 (Entry):</strong> 當出現 <strong>SSL (綠色箭頭)</strong> 後，等待價格回落至最近的<strong>綠色區域 (看漲 OB 或 FVG)</strong>。可在此區域的上緣或中間位置設定限價單。</li>
+                                    <li><strong>止損點 (Stop-Loss):</strong> 設定在您所依據的那個<strong>綠色區域的最低點再稍低一點</strong>的位置。</li>
+                                    <li><strong>止盈點 (Take-Profit):</strong> 目標可設為上方的波段高點、<strong>紅色區域 (看跌 OB 或 FVG)</strong>，或是一個曾出現過 <strong>BSL (紅色箭頭)</strong> 的價位。</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 class="text-lg font-semibold text-red-400">做空策略 (Short Position)</h4>
+                                <ul class="list-disc list-inside space-y-2 mt-2">
+                                    <li><strong>進場點 (Entry):</strong> 當出現 <strong>BSL (紅色箭頭)</strong> 後，等待價格反彈至最近的<strong>紅色區域 (看跌 OB 或 FVG)</strong>。可在此區域的下緣或中間位置設定限價單。</li>
+                                    <li><strong>止損點 (Stop-Loss):</strong> 設定在您所依據的那個<strong>紅色區域的最高點再稍高一點</strong>的位置。</li>
+                                    <li><strong>止盈點 (Take-Profit):</strong> 目標可設為下方的波段低點、<strong>綠色區域 (看漲 OB 或 FVG)</strong>，或是一個曾出現過 <strong>SSL (綠色箭頭)</strong> 的價位。</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
