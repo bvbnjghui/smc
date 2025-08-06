@@ -20,12 +20,12 @@ document.addEventListener('alpine:init', () => {
         volumeSeries: null,
         fvgLines: [],
         orderBlockLines: [],
-        showHelp: false,
-        // ** 新增：自動更新相關的狀態 **
         autoUpdate: false,
         updateIntervalId: null,
-        // ** 新增：用於儲存當前 K 線數據的陣列 **
         currentCandles: [],
+        isSidebarOpen: false,
+        // ** 修正：移除 showHelp，新增 isHelpModalOpen **
+        isHelpModalOpen: false,
 
         init() {
             this.setupChart();
@@ -108,7 +108,6 @@ document.addEventListener('alpine:init', () => {
             }).observe(container);
         },
 
-        // ** 新增：處理自動更新開關的邏輯 **
         toggleAutoUpdate() {
             if (this.autoUpdate) {
                 this.updateIntervalId = setInterval(() => {
@@ -119,14 +118,12 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        // ** 新增：停止自動更新的函式 **
         stopAutoUpdate() {
             clearInterval(this.updateIntervalId);
             this.updateIntervalId = null;
             this.autoUpdate = false; // 確保開關狀態同步
         },
 
-        // ** 新增：一個統一執行所有分析的函式 **
         runAllAnalyses(candles) {
             this.clearAllDrawings();
             this.analyzeAndDrawFVGs(candles);
@@ -260,14 +257,12 @@ document.addEventListener('alpine:init', () => {
             this.orderBlockLines = [];
         },
 
-        // ** 修改：fetchData 函式，增加 isUpdate 參數以區分初次載入和自動更新 **
         async fetchData(isUpdate = false) {
             if (!this.candleSeries || !this.volumeSeries) {
                 this.error = '圖表尚未初始化，無法載入數據。';
                 return;
             }
 
-            // 如果是手動觸發的初次載入，則關閉自動更新
             if (!isUpdate) {
                 this.stopAutoUpdate();
                 this.isLoading = true;
@@ -275,7 +270,6 @@ document.addEventListener('alpine:init', () => {
 
             this.error = '';
             try {
-                // 如果是自動更新，只取最新的 2 根 K 棒來判斷是否有新 K 線
                 const limit = isUpdate ? 2 : 500;
                 const response = await fetch(`${this.apiUrl}?symbol=${this.symbol}&interval=${this.interval}&limit=${limit}`);
                 
@@ -299,17 +293,14 @@ document.addEventListener('alpine:init', () => {
                 }));
 
                 if (isUpdate) {
-                    // 自動更新邏輯
                     const lastCandle = this.currentCandles[this.currentCandles.length - 1];
                     const newCandle = candles[candles.length - 1];
                     
                     if (newCandle && (!lastCandle || newCandle.time > lastCandle.time)) {
-                        // 有新的 K 棒，新增它
                         this.currentCandles.push(newCandle);
                         this.candleSeries.update(newCandle);
                         this.volumeSeries.update(volumes[volumes.length - 1]);
                     } else if (newCandle && lastCandle && newCandle.time === lastCandle.time) {
-                        // 更新最後一根 K 棒
                         this.currentCandles[this.currentCandles.length - 1] = newCandle;
                         this.candleSeries.update(newCandle);
                         this.volumeSeries.update(volumes[volumes.length - 1]);
@@ -317,7 +308,6 @@ document.addEventListener('alpine:init', () => {
                     this.runAllAnalyses(this.currentCandles);
 
                 } else {
-                    // 初次載入邏輯
                     this.currentCandles = candles;
                     this.candleSeries.setData(candles);
                     this.volumeSeries.setData(volumes);
@@ -334,7 +324,7 @@ document.addEventListener('alpine:init', () => {
             } catch (e) {
                 this.error = `載入數據失敗: ${e.message}`;
                 console.error(e);
-                this.stopAutoUpdate(); // 發生錯誤時停止更新
+                this.stopAutoUpdate();
             } finally {
                 if (!isUpdate) {
                     this.isLoading = false;
