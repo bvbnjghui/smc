@@ -21,9 +21,13 @@ document.addEventListener('alpine:init', () => {
         fvgLines: [],
         orderBlockLines: [],
         showHelp: false,
+        // ** 新增：自動更新相關的狀態 **
+        autoUpdate: false,
+        updateIntervalId: null,
+        // ** 新增：用於儲存當前 K 線數據的陣列 **
+        currentCandles: [],
 
         init() {
-            // Alpine.js 會自動處理 this.$nextTick，這裡可以直接呼叫
             this.setupChart();
             if (this.chart) {
                 this.fetchData();
@@ -102,6 +106,33 @@ document.addEventListener('alpine:init', () => {
                 const { width, height } = entries[0].contentRect;
                 this.chart.applyOptions({ width, height });
             }).observe(container);
+        },
+
+        // ** 新增：處理自動更新開關的邏輯 **
+        toggleAutoUpdate() {
+            if (this.autoUpdate) {
+                this.updateIntervalId = setInterval(() => {
+                    this.fetchData(true); // 傳入 true 代表是自動更新
+                }, 15000); // 每 15 秒更新一次
+            } else {
+                this.stopAutoUpdate();
+            }
+        },
+
+        // ** 新增：停止自動更新的函式 **
+        stopAutoUpdate() {
+            clearInterval(this.updateIntervalId);
+            this.updateIntervalId = null;
+            this.autoUpdate = false; // 確保開關狀態同步
+        },
+
+        // ** 新增：一個統一執行所有分析的函式 **
+        runAllAnalyses(candles) {
+            this.clearAllDrawings();
+            this.analyzeAndDrawFVGs(candles);
+            this.analyzeAndDrawOrderBlocks(candles);
+            const liquidityMarkers = this.analyzeLiquidityGrabs(candles);
+            this.candleSeries.setMarkers(liquidityMarkers);
         },
 
         analyzeAndDrawFVGs(candles) {
@@ -229,21 +260,27 @@ document.addEventListener('alpine:init', () => {
             this.orderBlockLines = [];
         },
 
-        async fetchData() {
+        // ** 修改：fetchData 函式，增加 isUpdate 參數以區分初次載入和自動更新 **
+        async fetchData(isUpdate = false) {
             if (!this.candleSeries || !this.volumeSeries) {
                 this.error = '圖表尚未初始化，無法載入數據。';
                 return;
             }
 
-            this.isLoading = true;
+            // 如果是手動觸發的初次載入，則關閉自動更新
+            if (!isUpdate) {
+                this.stopAutoUpdate();
+                this.isLoading = true;
+            }
+
             this.error = '';
             try {
-                this.clearAllDrawings();
-
-                const response = await fetch(`${this.apiUrl}?symbol=${this.symbol}&interval=${this.interval}`);
+                // 如果是自動更新，只取最新的 2 根 K 棒來判斷是否有新 K 線
+                const limit = isUpdate ? 2 : 500;
+                const response = await fetch(`${this.apiUrl}?symbol=${this.symbol}&interval=${this.interval}&limit=${limit}`);
+                
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`API 請求失敗，狀態碼: ${response.status}. 回應: ${errorText}`);
+                    throw new Error(`API 請求失敗，狀態碼: ${response.status}`);
                 }
                 const rawData = await response.json();
                 
@@ -261,27 +298,47 @@ document.addEventListener('alpine:init', () => {
                     color: parseFloat(d[4]) >= parseFloat(d[1]) ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)',
                 }));
 
-                this.candleSeries.setData(candles);
-                this.volumeSeries.setData(volumes);
+                if (isUpdate) {
+                    // 自動更新邏輯
+                    const lastCandle = this.currentCandles[this.currentCandles.length - 1];
+                    const newCandle = candles[candles.length - 1];
+                    
+                    if (newCandle && (!lastCandle || newCandle.time > lastCandle.time)) {
+                        // 有新的 K 棒，新增它
+                        this.currentCandles.push(newCandle);
+                        this.candleSeries.update(newCandle);
+                        this.volumeSeries.update(volumes[volumes.length - 1]);
+                    } else if (newCandle && lastCandle && newCandle.time === lastCandle.time) {
+                        // 更新最後一根 K 棒
+                        this.currentCandles[this.currentCandles.length - 1] = newCandle;
+                        this.candleSeries.update(newCandle);
+                        this.volumeSeries.update(volumes[volumes.length - 1]);
+                    }
+                    this.runAllAnalyses(this.currentCandles);
 
-                this.analyzeAndDrawFVGs(candles);
-                this.analyzeAndDrawOrderBlocks(candles);
-                const liquidityMarkers = this.analyzeLiquidityGrabs(candles);
-                this.candleSeries.setMarkers(liquidityMarkers);
+                } else {
+                    // 初次載入邏輯
+                    this.currentCandles = candles;
+                    this.candleSeries.setData(candles);
+                    this.volumeSeries.setData(volumes);
+                    this.runAllAnalyses(candles);
 
-                // ** 修正：將圖表視野設定在最新的 30 根 K 棒上，確保右側可見 **
-                if (candles.length > 0) {
-                    const barsToShow = 30;
-                    const from = Math.max(0, candles.length - barsToShow);
-                    const to = candles.length - 1;
-                    this.chart.timeScale().setVisibleLogicalRange({ from, to });
+                    if (candles.length > 0) {
+                        const barsToShow = 30;
+                        const from = Math.max(0, candles.length - barsToShow);
+                        const to = candles.length - 1;
+                        this.chart.timeScale().setVisibleLogicalRange({ from, to });
+                    }
                 }
 
             } catch (e) {
                 this.error = `載入數據失敗: ${e.message}`;
                 console.error(e);
+                this.stopAutoUpdate(); // 發生錯誤時停止更新
             } finally {
-                this.isLoading = false;
+                if (!isUpdate) {
+                    this.isLoading = false;
+                }
             }
         }
     }));
