@@ -6,8 +6,8 @@
     <title>SMC 策略分析儀</title>
     <!-- Tailwind CSS CDN for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- TradingView Lightweight Charts CDN -->
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- ** 修正：鎖定 Lightweight Charts 版本至 v3.8.0 以確保 API 穩定性 ** -->
+    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
     <!-- Alpine.js CDN for interactivity -->
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <style>
@@ -56,7 +56,6 @@
     <script>
         function app() {
             return {
-                // 請確保您的 API URL 是正確的
                 apiUrl: 'https://smc-338857749184.europe-west1.run.app/api/klines',
                 symbol: 'BTCUSDT',
                 interval: '15m',
@@ -73,6 +72,8 @@
                 chart: null,
                 candleSeries: null,
                 volumeSeries: null,
+                fvgLines: [],
+                orderBlockLines: [],
 
                 init() {
                     this.$nextTick(() => {
@@ -98,7 +99,6 @@
                             vertLines: { color: '#374151' },
                             horzLines: { color: '#374151' },
                         },
-                        // ** 新增：啟用圖表縮放與平移 **
                         handleScroll: {
                             mouseWheel: true,
                         },
@@ -107,23 +107,22 @@
                             mouseWheel: true,
                             pinch: true,
                         },
-                        // ** 新增：設定價格軸的邊界 **
                         rightPriceScale: {
                             borderColor: '#4b5563',
                             scaleMargins: {
-                                top: 0.3, // 頂部留 30% 空間
-                                bottom: 0.25, // 底部留 25% 空間
+                                top: 0.3,
+                                bottom: 0.25,
                             },
                         },
-                        // ** 新增：設定時間軸的邊界與捲動 **
                         timeScale: {
                             borderColor: '#4b5563',
-                            rightOffset: 12, // 右側留 12 根 K 棒的空間
+                            rightOffset: 12,
                             timeVisible: true,
                         },
                     });
 
-                    this.candleSeries = this.chart.addSeries(LightweightCharts.CandlestickSeries, {
+                    // ** 修正：還原成 v3.8.0 對應的 API 語法 **
+                    this.candleSeries = this.chart.addCandlestickSeries({
                         upColor: '#10b981',
                         downColor: '#ef4444',
                         borderUpColor: '#10b981',
@@ -132,21 +131,19 @@
                         wickDownColor: '#ef4444',
                     });
 
-                    // ** 修改：將交易量圖表放在獨立的窗格中 **
-                    this.volumeSeries = this.chart.addSeries(LightweightCharts.HistogramSeries, {
+                    // ** 修正：還原成 v3.8.0 對應的 API 語法 **
+                    this.volumeSeries = this.chart.addHistogramSeries({
                         color: '#26a69a',
                         priceFormat: {
                             type: 'volume',
                         },
-                        // 設置為空字串會創建一個新的價格軸窗格
                         priceScaleId: '', 
                         scaleMargins: {
-                            top: 0.8, // 頂部留 80% 空間
+                            top: 0.8,
                             bottom: 0,
                         },
                     });
 
-                    // 自動調整大小
                     new ResizeObserver(entries => {
                         if (entries.length === 0 || entries[0].target.offsetHeight === 0) {
                             return;
@@ -156,16 +153,142 @@
                     }).observe(container);
                 },
 
+                analyzeAndDrawFVGs(candles) {
+                    for (let i = 1; i < candles.length - 1; i++) {
+                        const prevCandle = candles[i - 1];
+                        const nextCandle = candles[i + 1];
+                        if (prevCandle.low > nextCandle.high) {
+                            const fvgTop = prevCandle.low;
+                            const fvgBottom = nextCandle.high;
+                            let isMitigated = false;
+                            for (let j = i + 2; j < candles.length; j++) {
+                                if (candles[j].low <= fvgTop) { isMitigated = true; break; }
+                            }
+                            if (!isMitigated) {
+                                this.drawZone(this.fvgLines, fvgTop, fvgBottom, 'rgba(16, 185, 129, 0.8)', '看漲 FVG', LightweightCharts.LineStyle.Dashed);
+                            }
+                        }
+                        if (prevCandle.high < nextCandle.low) {
+                            const fvgTop = nextCandle.low;
+                            const fvgBottom = prevCandle.high;
+                            let isMitigated = false;
+                            for (let j = i + 2; j < candles.length; j++) {
+                                if (candles[j].high >= fvgBottom) { isMitigated = true; break; }
+                            }
+                            if (!isMitigated) {
+                                this.drawZone(this.fvgLines, fvgTop, fvgBottom, 'rgba(239, 68, 68, 0.8)', '看跌 FVG', LightweightCharts.LineStyle.Dashed);
+                            }
+                        }
+                    }
+                },
+
+                analyzeAndDrawOrderBlocks(candles) {
+                    for (let i = 0; i < candles.length - 1; i++) {
+                        const orderBlockCandle = candles[i];
+                        const breakCandle = candles[i + 1];
+                        if (orderBlockCandle.close > orderBlockCandle.open && breakCandle.close < orderBlockCandle.low) {
+                            const obTop = orderBlockCandle.high;
+                            const obBottom = orderBlockCandle.low;
+                            let isMitigated = false;
+                            for (let j = i + 2; j < candles.length; j++) {
+                                if (candles[j].high >= obBottom) { isMitigated = true; break; }
+                            }
+                            if (!isMitigated) {
+                                this.drawZone(this.orderBlockLines, obTop, obBottom, 'rgba(239, 68, 68, 0.8)', '看跌 OB', LightweightCharts.LineStyle.Solid, 2);
+                            }
+                        }
+                        if (orderBlockCandle.close < orderBlockCandle.open && breakCandle.close > orderBlockCandle.high) {
+                            const obTop = orderBlockCandle.high;
+                            const obBottom = orderBlockCandle.low;
+                            let isMitigated = false;
+                            for (let j = i + 2; j < candles.length; j++) {
+                                if (candles[j].low <= obTop) { isMitigated = true; break; }
+                            }
+                            if (!isMitigated) {
+                                this.drawZone(this.orderBlockLines, obTop, obBottom, 'rgba(16, 185, 129, 0.8)', '看漲 OB', LightweightCharts.LineStyle.Solid, 2);
+                            }
+                        }
+                    }
+                },
+                
+                analyzeLiquidityGrabs(candles) {
+                    const markers = [];
+                    const swingHighs = [];
+                    const swingLows = [];
+
+                    for (let i = 1; i < candles.length - 1; i++) {
+                        const prev = candles[i - 1];
+                        const current = candles[i];
+                        const next = candles[i + 1];
+                        if (current.high > prev.high && current.high > next.high) {
+                            swingHighs.push({ index: i, price: current.high, grabbed: false });
+                        }
+                        if (current.low < prev.low && current.low < next.low) {
+                            swingLows.push({ index: i, price: current.low, grabbed: false });
+                        }
+                    }
+
+                    for (let i = 0; i < candles.length; i++) {
+                        for (const sh of swingHighs) {
+                            if (!sh.grabbed && i > sh.index && candles[i].high > sh.price) {
+                                markers.push({
+                                    time: candles[i].time,
+                                    position: 'aboveBar',
+                                    color: '#ef4444',
+                                    shape: 'arrowDown',
+                                    text: 'BSL'
+                                });
+                                sh.grabbed = true;
+                            }
+                        }
+                        for (const sl of swingLows) {
+                            if (!sl.grabbed && i > sl.index && candles[i].low < sl.price) {
+                                markers.push({
+                                    time: candles[i].time,
+                                    position: 'belowBar',
+                                    color: '#10b981',
+                                    shape: 'arrowUp',
+                                    text: 'SSL'
+                                });
+                                sl.grabbed = true;
+                            }
+                        }
+                    }
+                    return markers;
+                },
+
+                drawZone(lineArray, price1, price2, color, title, lineStyle, lineWidth = 1) {
+                    const lineOptions = {
+                        price: 0,
+                        color: color,
+                        lineWidth: lineWidth,
+                        lineStyle: lineStyle,
+                        axisLabelVisible: true,
+                        title: title,
+                    };
+                    const topLine = this.candleSeries.createPriceLine({ ...lineOptions, price: price1 });
+                    const bottomLine = this.candleSeries.createPriceLine({ ...lineOptions, price: price2 });
+                    lineArray.push(topLine, bottomLine);
+                },
+
+                clearAllDrawings() {
+                    this.fvgLines.forEach(line => this.candleSeries.removePriceLine(line));
+                    this.orderBlockLines.forEach(line => this.candleSeries.removePriceLine(line));
+                    this.fvgLines = [];
+                    this.orderBlockLines = [];
+                },
+
                 async fetchData() {
                     if (!this.candleSeries || !this.volumeSeries) {
                         this.error = '圖表尚未初始化，無法載入數據。';
-                        console.error('Chart is not initialized, cannot fetch data.');
                         return;
                     }
 
                     this.isLoading = true;
                     this.error = '';
                     try {
+                        this.clearAllDrawings();
+
                         const response = await fetch(`${this.apiUrl}?symbol=${this.symbol}&interval=${this.interval}`);
                         if (!response.ok) {
                             const errorText = await response.text();
@@ -181,7 +304,6 @@
                             close: parseFloat(d[4]),
                         }));
                         
-                        // ** 修改：讓交易量顏色更美觀 (半透明) **
                         const volumes = rawData.map(d => ({
                             time: d[0] / 1000,
                             value: parseFloat(d[5]),
@@ -191,7 +313,11 @@
                         this.candleSeries.setData(candles);
                         this.volumeSeries.setData(volumes);
 
-                        // ** 新增：載入數據後，自動調整圖表視野以符合內容 **
+                        this.analyzeAndDrawFVGs(candles);
+                        this.analyzeAndDrawOrderBlocks(candles);
+                        const liquidityMarkers = this.analyzeLiquidityGrabs(candles);
+                        this.candleSeries.setMarkers(liquidityMarkers);
+
                         this.chart.timeScale().fitContent();
 
                     } catch (e) {
