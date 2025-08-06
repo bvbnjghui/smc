@@ -59,10 +59,6 @@ document.addEventListener('alpine:init', () => {
                         top: 0.3,
                         bottom: 0.25,
                     },
-                    // ** 新增：設定價格格式化，自動調整小數位數 **
-                    // 根據價格自動決定精度，避免數字過長
-                    // 例如，對於 BTCUSDT，價格是幾萬，就不需要顯示小數
-                    // 對於 SHIBUSDT，價格很小，就需要顯示多位小數
                     formatter: price => {
                         if (price > 1000) return price.toFixed(2);
                         if (price > 1) return price.toFixed(4);
@@ -73,6 +69,8 @@ document.addEventListener('alpine:init', () => {
                     borderColor: '#4b5563',
                     rightOffset: 12,
                     timeVisible: true,
+                    // ** 新增：增加 K 線之間的間距，解決橫軸擁擠問題 **
+                    barSpacing: 15,
                 },
             });
 
