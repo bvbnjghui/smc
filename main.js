@@ -21,6 +21,7 @@ document.addEventListener('alpine:init', () => {
         fvgLines: [],
         orderBlockLines: [],
         showHelp: false,
+        // ** 還原：已移除 dataLength **
 
         init() {
             // Alpine.js 會自動處理 this.$nextTick，這裡可以直接呼叫
@@ -52,6 +53,8 @@ document.addEventListener('alpine:init', () => {
                     axisPressedMouseMove: true,
                     mouseWheel: true,
                     pinch: true,
+                    // ** 新增：允許使用者透過雙擊座標軸來重置圖表縮放 **
+                    axisDoubleClickReset: true,
                 },
                 rightPriceScale: {
                     borderColor: '#4b5563',
@@ -69,8 +72,7 @@ document.addEventListener('alpine:init', () => {
                     borderColor: '#4b5563',
                     rightOffset: 12,
                     timeVisible: true,
-                    // ** 新增：增加 K 線之間的間距，解決橫軸擁擠問題 **
-                    barSpacing: 15,
+                    barSpacing: 8,
                 },
             });
 
@@ -102,6 +104,8 @@ document.addEventListener('alpine:init', () => {
                 const { width, height } = entries[0].contentRect;
                 this.chart.applyOptions({ width, height });
             }).observe(container);
+
+            // ** 還原：已移除限制捲動範圍的邏輯 **
         },
 
         analyzeAndDrawFVGs(candles) {
@@ -260,6 +264,8 @@ document.addEventListener('alpine:init', () => {
                     value: parseFloat(d[5]),
                     color: parseFloat(d[4]) >= parseFloat(d[1]) ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)',
                 }));
+
+                // ** 還原：已移除 dataLength 的更新 **
 
                 this.candleSeries.setData(candles);
                 this.volumeSeries.setData(volumes);
