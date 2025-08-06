@@ -269,12 +269,13 @@ document.addEventListener('alpine:init', () => {
                 const liquidityMarkers = this.analyzeLiquidityGrabs(candles);
                 this.candleSeries.setMarkers(liquidityMarkers);
 
-                // ** 修正：將圖表視野設定在最新的 80 根 K 棒上 **
-                if (candles.length > 80) {
-                    this.chart.timeScale().setVisibleLogicalRange({ from: candles.length - 80, to: candles.length - 1 });
-                } else {
-                    this.chart.timeScale().fitContent();
-                }
+                // ** 修正：自動捲動至圖表最右側，確保顯示最新時間與縱軸刻度 **
+                // 使用 setTimeout 確保圖表在數據設定後有足夠時間渲染
+                setTimeout(() => {
+                    // scrollToPosition 的第一個參數是 K 棒的邏輯索引
+                    // 我們捲動到最後一根 K 棒的位置，以確保最新的價格和縱軸可見
+                    this.chart.timeScale().scrollToPosition(candles.length - 1, false);
+                }, 0);
 
 
             } catch (e) {
