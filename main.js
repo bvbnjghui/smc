@@ -21,7 +21,6 @@ document.addEventListener('alpine:init', () => {
         fvgLines: [],
         orderBlockLines: [],
         showHelp: false,
-        // ** 還原：已移除 dataLength **
 
         init() {
             // Alpine.js 會自動處理 this.$nextTick，這裡可以直接呼叫
@@ -53,7 +52,6 @@ document.addEventListener('alpine:init', () => {
                     axisPressedMouseMove: true,
                     mouseWheel: true,
                     pinch: true,
-                    // ** 新增：允許使用者透過雙擊座標軸來重置圖表縮放 **
                     axisDoubleClickReset: true,
                 },
                 rightPriceScale: {
@@ -104,8 +102,6 @@ document.addEventListener('alpine:init', () => {
                 const { width, height } = entries[0].contentRect;
                 this.chart.applyOptions({ width, height });
             }).observe(container);
-
-            // ** 還原：已移除限制捲動範圍的邏輯 **
         },
 
         analyzeAndDrawFVGs(candles) {
@@ -265,8 +261,6 @@ document.addEventListener('alpine:init', () => {
                     color: parseFloat(d[4]) >= parseFloat(d[1]) ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)',
                 }));
 
-                // ** 還原：已移除 dataLength 的更新 **
-
                 this.candleSeries.setData(candles);
                 this.volumeSeries.setData(volumes);
 
@@ -275,7 +269,13 @@ document.addEventListener('alpine:init', () => {
                 const liquidityMarkers = this.analyzeLiquidityGrabs(candles);
                 this.candleSeries.setMarkers(liquidityMarkers);
 
-                this.chart.timeScale().fitContent();
+                // ** 修正：將圖表視野設定在最新的 80 根 K 棒上 **
+                if (candles.length > 80) {
+                    this.chart.timeScale().setVisibleLogicalRange({ from: candles.length - 80, to: candles.length - 1 });
+                } else {
+                    this.chart.timeScale().fitContent();
+                }
+
 
             } catch (e) {
                 this.error = `載入數據失敗: ${e.message}`;
