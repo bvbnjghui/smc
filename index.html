@@ -73,11 +73,34 @@
                             </template>
                         </select>
                     </div>
+                    
+                    <!-- ** 新增：回測模式區塊 ** -->
+                    <div class="space-y-4 pt-4 border-t border-gray-700">
+                        <div class="flex items-center justify-between text-gray-400">
+                            <span>回測模式</span>
+                            <div class="relative inline-block w-10 align-middle select-none">
+                                <input type="checkbox" id="backtestMode" x-model="isBacktestMode" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                <label for="backtestMode" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                            </div>
+                        </div>
+                        <div x-show="isBacktestMode" x-collapse class="space-y-2">
+                            <div>
+                                <label for="startDate" class="text-sm text-gray-400">開始日期:</label>
+                                <input type="date" id="startDate" x-model="backtestStartDate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                            </div>
+                             <div>
+                                <label for="endDate" class="text-sm text-gray-400">結束日期:</label>
+                                <input type="date" id="endDate" x-model="backtestEndDate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                            </div>
+                        </div>
+                    </div>
+
                     <button @click="fetchData(); isSidebarOpen = false" :disabled="isLoading" class="w-full bg-teal-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-teal-700 transition duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span x-show="!isLoading">載入數據</span>
+                        <span x-show="!isLoading && !isBacktestMode">載入數據</span>
+                        <span x-show="!isLoading && isBacktestMode">執行回測</span>
                         <span x-show="isLoading">載入中...</span>
                     </button>
-                    <!-- ** 新增：圖表顯示設定 ** -->
+                    
                     <div class="space-y-4 pt-4 border-t border-gray-700">
                         <h3 class="text-lg font-semibold text-gray-300">圖表顯示</h3>
                         <div class="flex items-center justify-between text-gray-400">
@@ -102,10 +125,10 @@
                             </div>
                         </div>
                     </div>
-                    <div class="flex items-center justify-between space-x-2 text-gray-400 pt-4 border-t border-gray-700">
+                    <div class="flex items-center justify-between space-x-2 text-gray-400 pt-4 border-t border-gray-700" :class="{ 'opacity-50': isBacktestMode }">
                         <span>自動更新</span>
                         <div class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
-                            <input type="checkbox" name="toggle" id="toggle" x-model="autoUpdate" @change="toggleAutoUpdate" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                            <input type="checkbox" name="toggle" id="toggle" x-model="autoUpdate" @change="toggleAutoUpdate" :disabled="isBacktestMode" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
                             <label for="toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
                         </div>
                     </div>

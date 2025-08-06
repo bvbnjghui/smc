@@ -9,6 +9,9 @@ document.addEventListener('alpine:init', () => {
                 showLiquidity: true,
                 showOrderBlocks: true,
                 showFVGs: true,
+                isBacktestMode: false,
+                backtestStartDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0], // 預設為一個月前
+                backtestEndDate: new Date().toISOString().split('T')[0], // 預設為今天
             };
             const commonSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
 
@@ -35,25 +38,21 @@ document.addEventListener('alpine:init', () => {
                     showLiquidity: settings.showLiquidity,
                     showOrderBlocks: settings.showOrderBlocks,
                     showFVGs: settings.showFVGs,
+                    isBacktestMode: settings.isBacktestMode,
+                    backtestStartDate: settings.backtestStartDate,
+                    backtestEndDate: settings.backtestEndDate,
                 };
 
             } catch (e) {
                 console.error('Failed to load settings from localStorage, using defaults.', e);
-                return {
-                    selectedPreset: defaults.symbol,
-                    customSymbol: '',
-                    interval: defaults.interval,
-                    showLiquidity: defaults.showLiquidity,
-                    showOrderBlocks: defaults.showOrderBlocks,
-                    showFVGs: defaults.showFVGs,
-                };
+                return { ...defaults, selectedPreset: defaults.symbol, customSymbol: '' };
             }
         };
 
         const initialSettings = loadInitialSettings();
 
         return {
-            apiUrl: 'https://smc-338857749184.europe-west1.run.app/api/klines',
+            apiUrl: 'https://smc-338857749184.europe-west1.run.app',
             commonSymbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
             selectedPreset: initialSettings.selectedPreset,
             customSymbol: initialSettings.customSymbol,
@@ -81,6 +80,9 @@ document.addEventListener('alpine:init', () => {
             showLiquidity: initialSettings.showLiquidity,
             showOrderBlocks: initialSettings.showOrderBlocks,
             showFVGs: initialSettings.showFVGs,
+            isBacktestMode: initialSettings.isBacktestMode,
+            backtestStartDate: initialSettings.backtestStartDate,
+            backtestEndDate: initialSettings.backtestEndDate,
 
             get symbol() {
                 if (this.selectedPreset === 'CUSTOM') {
@@ -99,6 +101,12 @@ document.addEventListener('alpine:init', () => {
                 this.$watch('showLiquidity', () => this.saveSettings());
                 this.$watch('showOrderBlocks', () => this.saveSettings());
                 this.$watch('showFVGs', () => this.saveSettings());
+                this.$watch('isBacktestMode', (newValue) => {
+                    if (!newValue) this.stopAutoUpdate();
+                    this.saveSettings();
+                });
+                this.$watch('backtestStartDate', () => this.saveSettings());
+                this.$watch('backtestEndDate', () => this.saveSettings());
             },
 
             saveSettings() {
@@ -108,6 +116,9 @@ document.addEventListener('alpine:init', () => {
                     showLiquidity: this.showLiquidity,
                     showOrderBlocks: this.showOrderBlocks,
                     showFVGs: this.showFVGs,
+                    isBacktestMode: this.isBacktestMode,
+                    backtestStartDate: this.backtestStartDate,
+                    backtestEndDate: this.backtestEndDate,
                 };
                 localStorage.setItem('smcAnalyzerSettings', JSON.stringify(settings));
             },
@@ -138,7 +149,10 @@ document.addEventListener('alpine:init', () => {
                     },
                     rightPriceScale: {
                         borderColor: '#4b5563',
-                        // ** 修正：移除固定的邊界設定，改由下方的 autoscaleInfoProvider 全權控制 **
+                        scaleMargins: {
+                            top: 0.3,
+                            bottom: 0.25,
+                        },
                         formatter: price => {
                             if (price > 1000) return price.toFixed(2);
                             if (price > 1) return price.toFixed(4);
@@ -161,48 +175,6 @@ document.addEventListener('alpine:init', () => {
                     wickUpColor: '#10b981',
                     wickDownColor: '#ef4444',
                 });
-                
-                // ** 新增：使用 autoscaleInfoProvider 來手動控制縱軸的縮放行為 **
-                this.candleSeries.priceScale().applyOptions({
-                    autoscaleInfoProvider: () => {
-                        if (!this.currentCandles || this.currentCandles.length === 0) {
-                            return null;
-                        }
-
-                        const visibleRange = this.chart.timeScale().getVisibleLogicalRange();
-                        if (!visibleRange) {
-                            return null;
-                        }
-
-                        const visibleCandles = this.currentCandles.slice(
-                            Math.max(0, Math.floor(visibleRange.from)),
-                            Math.min(this.currentCandles.length, Math.ceil(visibleRange.to))
-                        );
-
-                        if (visibleCandles.length === 0) {
-                            return null;
-                        }
-                        
-                        let minPrice = visibleCandles[0].low;
-                        let maxPrice = visibleCandles[0].high;
-
-                        for (let i = 1; i < visibleCandles.length; i++) {
-                            minPrice = Math.min(minPrice, visibleCandles[i].low);
-                            maxPrice = Math.max(maxPrice, visibleCandles[i].high);
-                        }
-
-                        // 手動增加固定的上下邊界，確保空間永遠足夠
-                        const padding = (maxPrice - minPrice) * 0.2; // 上下各增加 20% 的空間
-                        
-                        return {
-                            priceRange: {
-                                minValue: minPrice - padding,
-                                maxValue: maxPrice + padding,
-                            },
-                        };
-                    },
-                });
-
 
                 this.volumeSeries = this.chart.addHistogramSeries({
                     color: '#26a69a',
@@ -226,7 +198,7 @@ document.addEventListener('alpine:init', () => {
             },
 
             toggleAutoUpdate() {
-                if (this.autoUpdate) {
+                if (this.autoUpdate && !this.isBacktestMode) {
                     this.updateIntervalId = setInterval(() => {
                         this.fetchData(true);
                     }, 15000);
@@ -256,13 +228,6 @@ document.addEventListener('alpine:init', () => {
                     this.candleSeries.setMarkers(liquidityMarkers);
                 } else {
                     this.candleSeries.setMarkers([]);
-                }
-                
-                // ** 新增：手動觸發價格軸的重新計算 **
-                // 透過輕微調整可視範圍，來強制 autoscaleInfoProvider 重新執行
-                const logicalRange = this.chart.timeScale().getVisibleLogicalRange();
-                if (logicalRange) {
-                    this.chart.timeScale().setVisibleLogicalRange(logicalRange);
                 }
             },
 
@@ -405,8 +370,15 @@ document.addEventListener('alpine:init', () => {
 
                 this.error = '';
                 try {
-                    const limit = isUpdate ? 2 : 500;
-                    const response = await fetch(`${this.apiUrl}?symbol=${this.symbol}&interval=${this.interval}&limit=${limit}`);
+                    let response;
+                    if (this.isBacktestMode) {
+                        const startTime = new Date(this.backtestStartDate).getTime();
+                        const endTime = new Date(this.backtestEndDate).getTime();
+                        response = await fetch(`${this.apiUrl}/api/historical-klines?symbol=${this.symbol}&interval=${this.interval}&startTime=${startTime}&endTime=${endTime}`);
+                    } else {
+                        const limit = isUpdate ? 2 : 500;
+                        response = await fetch(`${this.apiUrl}/api/klines?symbol=${this.symbol}&interval=${this.interval}&limit=${limit}`);
+                    }
                     
                     if (!response.ok) {
                         throw new Error(`API 請求失敗，狀態碼: ${response.status}`);
@@ -427,7 +399,7 @@ document.addEventListener('alpine:init', () => {
                         color: parseFloat(d[4]) >= parseFloat(d[1]) ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)',
                     }));
 
-                    if (isUpdate) {
+                    if (isUpdate && !this.isBacktestMode) {
                         const lastCandle = this.currentCandles[this.currentCandles.length - 1];
                         const newCandle = candles[candles.length - 1];
                         
