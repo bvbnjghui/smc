@@ -9,7 +9,6 @@
     <!-- TradingView Lightweight Charts CDN -->
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <!-- Alpine.js CDN for interactivity -->
-    <!-- 修正 defer 屬性的位置 -->
     <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <style>
         body {
@@ -57,7 +56,7 @@
     <script>
         function app() {
             return {
-                // 已更新為您提供的 Cloud Run 服務 URL
+                // 請確保您的 API URL 是正確的
                 apiUrl: 'https://smc-338857749184.europe-west1.run.app/api/klines',
                 symbol: 'BTCUSDT',
                 interval: '15m',
@@ -76,14 +75,16 @@
                 volumeSeries: null,
 
                 init() {
-                    // 確保在 DOM 元素準備好後才初始化圖表
-                    this.setupChart();
-                    this.fetchData();
+                    this.$nextTick(() => {
+                        this.setupChart();
+                        if (this.chart) {
+                            this.fetchData();
+                        }
+                    });
                 },
 
                 setupChart() {
                     const container = document.getElementById('chart');
-                    // 這裡增加一個檢查，確保容器元素存在
                     if (!container) {
                         console.error("找不到 ID 為 'chart' 的元素");
                         return;
@@ -97,15 +98,32 @@
                             vertLines: { color: '#374151' },
                             horzLines: { color: '#374151' },
                         },
+                        // ** 新增：啟用圖表縮放與平移 **
+                        handleScroll: {
+                            mouseWheel: true,
+                        },
+                        handleScale: {
+                            axisPressedMouseMove: true,
+                            mouseWheel: true,
+                            pinch: true,
+                        },
+                        // ** 新增：設定價格軸的邊界 **
                         rightPriceScale: {
                             borderColor: '#4b5563',
+                            scaleMargins: {
+                                top: 0.3, // 頂部留 30% 空間
+                                bottom: 0.25, // 底部留 25% 空間
+                            },
                         },
+                        // ** 新增：設定時間軸的邊界與捲動 **
                         timeScale: {
                             borderColor: '#4b5563',
+                            rightOffset: 12, // 右側留 12 根 K 棒的空間
+                            timeVisible: true,
                         },
                     });
 
-                    this.candleSeries = this.chart.addCandlestickSeries({
+                    this.candleSeries = this.chart.addSeries(LightweightCharts.CandlestickSeries, {
                         upColor: '#10b981',
                         downColor: '#ef4444',
                         borderUpColor: '#10b981',
@@ -114,14 +132,16 @@
                         wickDownColor: '#ef4444',
                     });
 
-                    this.volumeSeries = this.chart.addHistogramSeries({
+                    // ** 修改：將交易量圖表放在獨立的窗格中 **
+                    this.volumeSeries = this.chart.addSeries(LightweightCharts.HistogramSeries, {
                         color: '#26a69a',
                         priceFormat: {
                             type: 'volume',
                         },
-                        overlay: true,
+                        // 設置為空字串會創建一個新的價格軸窗格
+                        priceScaleId: '', 
                         scaleMargins: {
-                            top: 0.8,
+                            top: 0.8, // 頂部留 80% 空間
                             bottom: 0,
                         },
                     });
@@ -131,44 +151,48 @@
                         if (entries.length === 0 || entries[0].target.offsetHeight === 0) {
                             return;
                         }
-                        this.chart.applyOptions({ height: entries[0].target.offsetHeight });
+                        const { width, height } = entries[0].contentRect;
+                        this.chart.applyOptions({ width, height });
                     }).observe(container);
-
-                    this.chart.applyOptions({
-                        width: container.clientWidth,
-                        height: 600
-                    });
                 },
 
                 async fetchData() {
+                    if (!this.candleSeries || !this.volumeSeries) {
+                        this.error = '圖表尚未初始化，無法載入數據。';
+                        console.error('Chart is not initialized, cannot fetch data.');
+                        return;
+                    }
+
                     this.isLoading = true;
                     this.error = '';
                     try {
                         const response = await fetch(`${this.apiUrl}?symbol=${this.symbol}&interval=${this.interval}`);
                         if (!response.ok) {
-                            // 檢查狀態碼，如果不是 2xx，拋出錯誤
                             const errorText = await response.text();
                             throw new Error(`API 請求失敗，狀態碼: ${response.status}. 回應: ${errorText}`);
                         }
                         const rawData = await response.json();
                         
-                        // 轉換數據格式以符合 TradingView Lightweight Charts
                         const candles = rawData.map(d => ({
-                            time: d[0] / 1000, // 將毫秒轉換為秒
+                            time: d[0] / 1000,
                             open: parseFloat(d[1]),
                             high: parseFloat(d[2]),
                             low: parseFloat(d[3]),
                             close: parseFloat(d[4]),
                         }));
                         
+                        // ** 修改：讓交易量顏色更美觀 (半透明) **
                         const volumes = rawData.map(d => ({
                             time: d[0] / 1000,
                             value: parseFloat(d[5]),
-                            color: parseFloat(d[4]) >= parseFloat(d[1]) ? '#10b981' : '#ef4444',
+                            color: parseFloat(d[4]) >= parseFloat(d[1]) ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)',
                         }));
 
                         this.candleSeries.setData(candles);
                         this.volumeSeries.setData(volumes);
+
+                        // ** 新增：載入數據後，自動調整圖表視野以符合內容 **
+                        this.chart.timeScale().fitContent();
 
                     } catch (e) {
                         this.error = `載入數據失敗: ${e.message}`;
