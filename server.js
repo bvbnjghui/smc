@@ -9,13 +9,9 @@ const port = process.env.PORT || 8080;
 // 使用幣安公開 API，因此不需要 API 金鑰
 const binance = new Binance();
 
-// 使用更明確的 CORS 配置
-const corsOptions = {
-  origin: '*', // 允許所有來源
-  methods: ['GET'], // 僅允許 GET 請求
-};
-app.use(cors(corsOptions));
-console.log('CORS 中介軟體已啟用，允許所有來源');
+// 啟用 CORS 中介軟體，允許所有跨域請求
+// 這是最簡單且最常見的設定，可以解決您遇到的問題
+app.use(cors());
 
 // 根路由，用於健康檢查
 app.get('/', (req, res) => {
