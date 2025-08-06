@@ -269,9 +269,9 @@ document.addEventListener('alpine:init', () => {
                 const liquidityMarkers = this.analyzeLiquidityGrabs(candles);
                 this.candleSeries.setMarkers(liquidityMarkers);
 
-                // ** 修正：將圖表視野設定在最新的 80 根 K 棒上，確保右側可見 **
+                // ** 修正：將圖表視野設定在最新的 30 根 K 棒上，確保右側可見 **
                 if (candles.length > 0) {
-                    const barsToShow = 80;
+                    const barsToShow = 30;
                     const from = Math.max(0, candles.length - barsToShow);
                     const to = candles.length - 1;
                     this.chart.timeScale().setVisibleLogicalRange({ from, to });
