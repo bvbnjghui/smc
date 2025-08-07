@@ -38,7 +38,6 @@
         .toggle-checkbox:checked + .toggle-label {
             background-color: #10b981;
         }
-        /* ** 新增：隱藏側邊欄捲軸的 CSS ** */
         .sidebar-content::-webkit-scrollbar {
             width: 0px;
             background: transparent; /* make scrollbar transparent */
@@ -59,8 +58,7 @@
         >
             <div class="p-4 flex flex-col h-full">
                 <h2 class="text-2xl font-bold text-teal-400 mb-6 flex-shrink-0">設定</h2>
-                <!-- ** 修正：新增 sidebar-content class 以套用隱藏捲軸的樣式 ** -->
-                <div class="space-y-6 flex-grow overflow-y-auto px-1 sidebar-content">
+                <div class="space-y-6 flex-grow overflow-y-auto pr-2 sidebar-content">
                     <div class="space-y-2">
                         <label for="symbol-preset" class="text-gray-400">交易對:</label>
                         <select id="symbol-preset" x-model="selectedPreset" @change="stopAutoUpdate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase">
@@ -84,6 +82,12 @@
                         </select>
                     </div>
                     
+                    <button @click="fetchData(); isSidebarOpen = false" :disabled="isLoading" class="w-full bg-teal-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-teal-700 transition duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span x-show="!isLoading && !isBacktestMode">載入數據</span>
+                        <span x-show="!isLoading && isBacktestMode">載入回測數據</span>
+                        <span x-show="isLoading">載入中...</span>
+                    </button>
+                    
                     <div class="space-y-4 pt-4 border-t border-gray-700">
                         <div class="flex items-center justify-between text-gray-400">
                             <span>回測模式</span>
@@ -104,11 +108,33 @@
                         </div>
                     </div>
 
-                    <button @click="fetchData(); isSidebarOpen = false" :disabled="isLoading" class="w-full bg-teal-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-teal-700 transition duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span x-show="!isLoading && !isBacktestMode">載入數據</span>
-                        <span x-show="!isLoading && isBacktestMode">執行回測</span>
-                        <span x-show="isLoading">載入中...</span>
-                    </button>
+                    <div x-show="isBacktestMode" class="space-y-4 pt-4 border-t border-gray-700">
+                        <h3 class="text-lg font-semibold text-gray-300">策略回測模擬</h3>
+                        <div class="space-y-2">
+                            <label for="investmentAmount" class="text-sm text-gray-400">初始金額 ($):</label>
+                            <input type="number" id="investmentAmount" x-model.number="investmentAmount" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                        </div>
+                        <div class="space-y-2">
+                            <label for="riskPerTrade" class="text-sm text-gray-400">單一訊號風險 (%):</label>
+                            <input type="number" id="riskPerTrade" x-model.number="riskPerTrade" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                        </div>
+                        <div class="space-y-2">
+                            <label for="riskMultiGrab2" class="text-sm text-gray-400">雙重訊號風險 (%):</label>
+                            <input type="number" id="riskMultiGrab2" x-model.number="riskMultiGrab2" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                        </div>
+                        <div class="space-y-2">
+                            <label for="riskMultiGrab3plus" class="text-sm text-gray-400">多重(3+)訊號風險 (%):</label>
+                            <input type="number" id="riskMultiGrab3plus" x-model.number="riskMultiGrab3plus" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                        </div>
+                        <div class="space-y-2">
+                            <label for="rrRatio" class="text-sm text-gray-400">風險回報比 (1:X):</label>
+                            <input type="number" id="rrRatio" x-model.number="rrRatio" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                        </div>
+                        <button @click="runBacktestSimulation" :disabled="isSimulating || currentCandles.length === 0" class="w-full bg-indigo-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-show="!isSimulating">執行策略模擬</span>
+                            <span x-show="isSimulating">模擬中...</span>
+                        </button>
+                    </div>
                     
                     <div class="space-y-4 pt-4 border-t border-gray-700">
                         <h3 class="text-lg font-semibold text-gray-300">圖表顯示</h3>
@@ -117,6 +143,13 @@
                             <div class="relative inline-block w-10 align-middle select-none">
                                 <input type="checkbox" id="showLiquidity" x-model="showLiquidity" @change="redrawAllAnalyses" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
                                 <label for="showLiquidity" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-gray-400">
+                            <span>市場結構轉變 (MSS)</span>
+                            <div class="relative inline-block w-10 align-middle select-none">
+                                <input type="checkbox" id="showMSS" x-model="showMSS" @change="redrawAllAnalyses" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                <label for="showMSS" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
                             </div>
                         </div>
                         <div class="flex items-center justify-between text-gray-400">
@@ -250,11 +283,28 @@
                             </ul>
                         </div>
                     </div>
+                    <!-- ** 新增：MSS 說明 ** -->
+                    <div class="border-b border-gray-700 pb-2">
+                        <button @click="open = open === 'mss' ? '' : 'mss'" class="w-full text-left">
+                            <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
+                                <span>2. 市場結構轉變 (MSS)</span>
+                                <span x-show="open !== 'mss'">&#9662;</span>
+                                <span x-show="open === 'mss'">&#9652;</span>
+                            </h3>
+                        </button>
+                        <div x-show="open === 'mss'" x-collapse class="mt-2 text-gray-300 space-y-2">
+                            <p>這是「確認」訊號，代表市場的反轉意圖已非常明確。</p>
+                             <ul class="list-disc list-inside space-y-1">
+                                <li><strong class="text-blue-400">MSS (藍色虛線與標記)</strong>: 在流動性掠奪後，價格反向突破了前一個波段高/低點。</li>
+                                <li>這是交易策略的「綠燈」，只有在 MSS 確認後，才應該開始尋找下方的進場區。</li>
+                            </ul>
+                        </div>
+                    </div>
                     <!-- 訂單塊 -->
                     <div class="border-b border-gray-700 pb-2">
                         <button @click="open = open === 'ob' ? '' : 'ob'" class="w-full text-left">
                              <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                                <span>2. 訂單塊 (Order Block - 實線)</span>
+                                <span>3. 訂單塊 (Order Block - 實線)</span>
                                 <span x-show="open !== 'ob'">&#9662;</span>
                                 <span x-show="open === 'ob'">&#9652;</span>
                             </h3>
@@ -271,7 +321,7 @@
                     <div class="border-b border-gray-700 pb-2">
                         <button @click="open = open === 'fvg' ? '' : 'fvg'" class="w-full text-left">
                             <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                                <span>3. 公平價值缺口 (FVG - 虛線)</span>
+                                <span>4. 公平價值缺口 (FVG - 虛線)</span>
                                 <span x-show="open !== 'fvg'">&#9662;</span>
                                 <span x-show="open === 'fvg'">&#9652;</span>
                             </h3>
@@ -283,26 +333,6 @@
                                 <li><strong class="text-green-400">看漲 FVG (綠色虛線)</strong>: 價格快速上漲時留下的真空地帶。</li>
                                 <li>當訂單塊 (OB) 和 FVG 重疊時，該區域的支撐或壓力會非常強大。</li>
                             </ul>
-                        </div>
-                    </div>
-                    <!-- ** 新增：回測模式說明 ** -->
-                    <div class="border-b border-gray-700 pb-2">
-                        <button @click="open = open === 'backtest' ? '' : 'backtest'" class="w-full text-left">
-                            <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                                <span>如何使用回測模式</span>
-                                <span x-show="open !== 'backtest'">&#9662;</span>
-                                <span x-show="open === 'backtest'">&#9652;</span>
-                            </h3>
-                        </button>
-                        <div x-show="open === 'backtest'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                            <p>回測模式能讓您載入特定歷史時間區段的 K 線數據，並觀察 SMC 指標在當時的表現。操作步驟如下：</p>
-                            <ol class="list-decimal list-inside space-y-1">
-                                <li><strong>啟用回測模式</strong>：在側邊欄中，找到「回測模式」的開關並將其啟用。</li>
-                                <li><strong>選擇日期範圍</strong>：啟用後，下方會出現「開始日期」和「結束日期」的選擇器，請選擇您想要回測的歷史區間。</li>
-                                <li><strong>執行回測</strong>：點擊側邊欄中的「執行回測」按鈕。</li>
-                                <li><strong>分析圖表</strong>：圖表將會載入您指定時間範圍內的歷史數據，您可以縮放、平移圖表來研究過去的市場結構。</li>
-                                <li><strong>恢復即時模式</strong>：完成回測後，只需關閉「回測模式」開關，然後點擊「載入數據」按鈕，即可恢復。</li>
-                            </ol>
                         </div>
                     </div>
                     <!-- 如何設定多空策略 (進階) -->
