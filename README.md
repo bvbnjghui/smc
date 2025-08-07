@@ -23,6 +23,8 @@ SMC 策略分析儀
 
 模組化邏輯: 將核心商業邏輯拆分為獨立的 JavaScript 模組，存放於 modules/ 資料夾中。
 
+動態範圍分析: 提供「僅分析可見範圍」模式，啟用後所有指標會根據使用者平移或縮放的圖表視野即時更新。
+
 使用 TradingView Lightweight Charts 繪製 K 線圖表。
 
 透過 Alpine.js 處理所有使用者互動與狀態管理。
@@ -93,7 +95,7 @@ components/ (HTML 元件)
 
 sidebar.html: 側邊欄設定介面。
 
-header.html: 頁面頂部標頭。
+header.html: 頁面頂部標頭，包含「範圍分析模式」開關。
 
 help-modal.html: 「如何解讀圖表」的彈出視窗。
 
@@ -106,7 +108,7 @@ api.js: 專門處理所有與後端 API 的通訊。
 
 smc-analyzer.js: 核心 SMC 分析引擎，為純函式，不依賴外部狀態。
 
-chart-controller.js: 圖表控制器，封裝所有與 Lightweight Charts 相關的操作。
+chart-controller.js: 圖表控制器，封裝所有與 Lightweight Charts 相關的操作，並監聽圖表視野變化事件。
 
 backtester.js: 獨立的回測模擬引擎。
 

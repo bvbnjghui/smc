@@ -11,7 +11,13 @@ let volumeSeries = null;
 let priceLines = []; 
 let markers = []; 
 
-export function setupChart(containerId) {
+/**
+ * 初始化圖表，並設定外觀、座標軸、縮放等行為。
+ * @param {string} containerId - 圖表容器的 DOM 元素 ID。
+ * @param {Function} onVisibleRangeChanged - 當圖表可見範圍變化時的回呼函式。
+ * @returns {{chart: object, candleSeries: object, volumeSeries: object}} 圖表相關的實例。
+ */
+export function setupChart(containerId, onVisibleRangeChanged) {
     if (chart) {
         console.warn('圖表已被初始化，中止本次 setupChart 呼叫。');
         return { chart, candleSeries, volumeSeries };
@@ -38,6 +44,14 @@ export function setupChart(containerId) {
             }
         },
         timeScale: { borderColor: '#4b5563', rightOffset: 12, timeVisible: true, barSpacing: 8 },
+    });
+
+    // ** 新增：監聽圖表可見的 K 棒索引範圍變化 **
+    chart.timeScale().subscribeVisibleLogicalRangeChange(logicalRange => {
+        if (onVisibleRangeChanged && logicalRange) {
+            // 將範圍傳遞給 main.js 處理
+            onVisibleRangeChanged(logicalRange);
+        }
     });
 
     candleSeries = chart.addCandlestickSeries({
@@ -95,11 +109,6 @@ function drawZone(price1, price2, color, title, lineStyle, lineWidth = 1) {
     priceLines.push(topLine, bottomLine);
 }
 
-/**
- * 根據分析結果和顯示設定，在圖表上繪製所有標示。
- * @param {object} analyses - `smc-analyzer` 回傳的分析結果。
- * @param {object} settings - 使用者的顯示設定。
- */
 export function redrawAllAnalyses(analyses, settings) {
     if (!candleSeries) return;
 
@@ -107,7 +116,6 @@ export function redrawAllAnalyses(analyses, settings) {
 
     const { showLiquidity, showMSS, showOrderBlocks, showFVGs, showMitigated } = settings;
 
-    // 決定是否要顯示已緩解的區域
     const fvgsToDraw = showMitigated ? analyses.fvgs : analyses.fvgs.filter(fvg => !fvg.isMitigated);
     const orderBlocksToDraw = showMitigated ? analyses.orderBlocks : analyses.orderBlocks.filter(ob => !ob.isMitigated);
 

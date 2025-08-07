@@ -13,35 +13,20 @@ import { setupChart, updateChartData, fitChart, redrawAllAnalyses } from './modu
 import { analyzeAll } from './modules/smc-analyzer.js';
 import { runBacktestSimulation } from './modules/backtester.js';
 
-/**
- * 非同步載入 HTML 元件並將其注入到指定的容器中。
- * @param {string} componentName - 元件的檔案名稱 (不含 .html)。
- * @param {string} containerId - 目標容器的 DOM ID。
- */
 async function loadComponent(componentName, containerId) {
     try {
         const response = await fetch(`/smc/components/${componentName}.html`);
-        if (!response.ok) {
-            throw new Error(`無法載入元件 ${componentName}: ${response.statusText}`);
-        }
+        if (!response.ok) throw new Error(`無法載入元件 ${componentName}: ${response.statusText}`);
         const html = await response.text();
         const container = document.getElementById(containerId);
-        if (container) {
-            // 使用 innerHTML 注入，因為我們的元件是獨立的 HTML 塊
-            container.innerHTML = html;
-        } else {
-            console.error(`找不到 ID 為 '${containerId}' 的容器`);
-        }
+        if (container) container.innerHTML = html;
+        else console.error(`找不到 ID 為 '${containerId}' 的容器`);
     } catch (error) {
         console.error(`載入元件 ${componentName} 失敗:`, error);
     }
 }
 
-/**
- * 載入所有 UI 元件。
- */
 async function loadAllComponents() {
-    // 將所有 Modal 統一載入到一個容器中，簡化管理
     const modalComponents = `
         <div id="help-modal-placeholder"></div>
         <div id="simulation-settings-modal-placeholder"></div>
@@ -58,9 +43,7 @@ async function loadAllComponents() {
     ]);
 }
 
-// Alpine.js 元件定義 (與之前相同)
 const appComponent = () => {
-    // ... (這裡的內容與您之前的 main.js 完全相同，為節省篇幅故省略)
     const loadInitialSettings = () => {
         const defaults = {
             symbol: 'BTCUSDT',
@@ -70,6 +53,7 @@ const appComponent = () => {
             showOrderBlocks: true,
             showFVGs: true,
             showMitigated: false,
+            analyzeVisibleRangeOnly: false, // ** 新增：範圍分析模式 **
             isBacktestMode: false,
             backtestStartDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
             backtestEndDate: new Date().toISOString().split('T')[0],
@@ -85,11 +69,9 @@ const appComponent = () => {
         try {
             const savedSettings = localStorage.getItem('smcAnalyzerSettings');
             const settings = savedSettings ? { ...defaults, ...JSON.parse(savedSettings) } : defaults;
-
             const savedSymbol = (settings.symbol || defaults.symbol).toUpperCase();
             let selectedPreset = commonSymbols.includes(savedSymbol) ? savedSymbol : 'CUSTOM';
             let customSymbol = commonSymbols.includes(savedSymbol) ? '' : savedSymbol;
-
             return { ...settings, selectedPreset, customSymbol };
         } catch (e) {
             console.error('從 localStorage 載入設定失敗，將使用預設值。', e);
@@ -100,6 +82,7 @@ const appComponent = () => {
     const initialSettings = loadInitialSettings();
 
     return {
+        // --- 狀態 (State) ---
         commonSymbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
         selectedPreset: initialSettings.selectedPreset,
         customSymbol: initialSettings.customSymbol,
@@ -116,11 +99,17 @@ const appComponent = () => {
         isHelpModalOpen: false,
         autoUpdate: false,
         updateIntervalId: null,
+
+        // --- 圖表顯示設定 ---
         showLiquidity: initialSettings.showLiquidity,
         showMSS: initialSettings.showMSS,
         showOrderBlocks: initialSettings.showOrderBlocks,
         showFVGs: initialSettings.showFVGs,
         showMitigated: initialSettings.showMitigated,
+        analyzeVisibleRangeOnly: initialSettings.analyzeVisibleRangeOnly, // ** 新增狀態 **
+        visibleRange: null, // ** 新增：儲存圖表可見範圍的索引 **
+
+        // --- 回測相關狀態 ---
         isBacktestMode: initialSettings.isBacktestMode,
         backtestStartDate: initialSettings.backtestStartDate,
         backtestEndDate: initialSettings.backtestEndDate,
@@ -134,15 +123,19 @@ const appComponent = () => {
         simulationResults: null,
         isSimulationModalOpen: false,
         isSimulationSettingsModalOpen: false,
+
         get symbol() {
             return this.selectedPreset === 'CUSTOM' ? this.customSymbol.toUpperCase() : this.selectedPreset;
         },
+
         init() {
             console.log('Alpine component initialized.');
-            setupChart('chart');
+            // ** 修改：將 onVisibleRangeChanged 作為回呼函式傳遞 **
+            setupChart('chart', this.onVisibleRangeChanged.bind(this));
             this.fetchData();
+
             const settingsToWatch = [
-                'symbol', 'interval', 'showLiquidity', 'showMSS', 'showOrderBlocks', 'showFVGs', 'showMitigated',
+                'symbol', 'interval', 'showLiquidity', 'showMSS', 'showOrderBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
                 'isBacktestMode', 'backtestStartDate', 'backtestEndDate', 'investmentAmount',
                 'riskPerTrade', 'riskMultiGrab2', 'riskMultiGrab3plus', 'rrRatio', 'setupExpirationCandles'
             ];
@@ -153,15 +146,17 @@ const appComponent = () => {
                     }
                 });
             });
+            
             this.$watch('isBacktestMode', (newValue) => {
                 if (!newValue) this.stopAutoUpdate();
             });
         },
+
         saveSettings() {
             const settings = {
                 symbol: this.symbol, interval: this.interval, showLiquidity: this.showLiquidity,
                 showMSS: this.showMSS, showOrderBlocks: this.showOrderBlocks, showFVGs: this.showFVGs,
-                showMitigated: this.showMitigated,
+                showMitigated: this.showMitigated, analyzeVisibleRangeOnly: this.analyzeVisibleRangeOnly,
                 isBacktestMode: this.isBacktestMode, backtestStartDate: this.backtestStartDate,
                 backtestEndDate: this.backtestEndDate, investmentAmount: this.investmentAmount,
                 riskPerTrade: this.riskPerTrade, riskMultiGrab2: this.riskMultiGrab2,
@@ -169,8 +164,8 @@ const appComponent = () => {
                 setupExpirationCandles: this.setupExpirationCandles,
             };
             localStorage.setItem('smcAnalyzerSettings', JSON.stringify(settings));
-            console.log('Settings saved to localStorage.');
         },
+
         async fetchData() {
             if (this.isLoading) return;
             this.stopAutoUpdate();
@@ -192,9 +187,29 @@ const appComponent = () => {
                 this.isLoading = false;
             }
         },
+
+        // ** 新增：處理圖表視野變化的回呼函式 **
+        onVisibleRangeChanged(newRange) {
+            this.visibleRange = newRange;
+            // 如果啟用了範圍分析模式，則在每次視野變化時重新繪製
+            if (this.analyzeVisibleRangeOnly) {
+                this.redrawChartAnalyses();
+            }
+        },
+
         redrawChartAnalyses() {
             if (this.currentCandles.length === 0) return;
-            const analyses = analyzeAll(this.currentCandles);
+
+            let candlesToAnalyze = this.currentCandles;
+
+            // ** 新增：如果啟用範圍分析，則只分析可見範圍內的 K 棒 **
+            if (this.analyzeVisibleRangeOnly && this.visibleRange) {
+                const from = Math.floor(this.visibleRange.from);
+                const to = Math.ceil(this.visibleRange.to);
+                candlesToAnalyze = this.currentCandles.slice(from, to);
+            }
+            
+            const analyses = analyzeAll(candlesToAnalyze);
             const displaySettings = {
                 showLiquidity: this.showLiquidity, showMSS: this.showMSS,
                 showOrderBlocks: this.showOrderBlocks, showFVGs: this.showFVGs,
@@ -202,6 +217,7 @@ const appComponent = () => {
             };
             redrawAllAnalyses(analyses, displaySettings);
         },
+
         runSimulationFromModal() {
             if (!this.isBacktestMode || this.currentCandles.length === 0) {
                 alert('請先在回測模式下，載入歷史數據。');
@@ -230,10 +246,12 @@ const appComponent = () => {
                 }
             }, 100);
         },
+
         rerunWithNewSettings() {
             this.isSimulationModalOpen = false;
             this.isSimulationSettingsModalOpen = true;
         },
+
         toggleAutoUpdate() {
             if (this.autoUpdate && !this.isBacktestMode) {
                 this.updateIntervalId = setInterval(() => this.fetchData(), 15000);
@@ -241,6 +259,7 @@ const appComponent = () => {
                 this.stopAutoUpdate();
             }
         },
+
         stopAutoUpdate() {
             if (this.updateIntervalId) {
                 clearInterval(this.updateIntervalId);
@@ -251,17 +270,14 @@ const appComponent = () => {
     };
 };
 
-// 應用程式啟動主流程
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOM 已載入，開始載入元件...');
     await loadAllComponents();
     console.log('所有元件已載入。');
 
-    // 註冊 Alpine.js 外掛和元件
     Alpine.plugin(collapse);
     Alpine.data('app', appComponent);
     
-    // 啟動 Alpine.js
     window.Alpine = Alpine;
     Alpine.start();
     console.log('Alpine.js 已啟動。');
