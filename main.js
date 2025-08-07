@@ -332,9 +332,9 @@ document.addEventListener('alpine:init', () => {
 
                             for (let i = grabCandleIndex + 1; i < candles.length; i++) {
                                 if (candles[i].close < relevantLow.price) {
-                                    // ** 新增：檢查 MSS 是否已失效 **
                                     let isInvalidated = false;
                                     const protectionHigh = swingHighs.filter(sh => sh.index > relevantLow.index && sh.index < i).pop();
+                                    // ** 修正：新增空值檢查 **
                                     if (protectionHigh) {
                                         for (let j = i + 1; j < candles.length; j++) {
                                             if (candles[j].close > protectionHigh.price) {
@@ -358,9 +358,9 @@ document.addEventListener('alpine:init', () => {
 
                             for (let i = grabCandleIndex + 1; i < candles.length; i++) {
                                 if (candles[i].close > relevantHigh.price) {
-                                    // ** 新增：檢查 MSS 是否已失效 **
                                     let isInvalidated = false;
                                     const protectionLow = swingLows.filter(sl => sl.index > relevantHigh.index && sl.index < i).pop();
+                                     // ** 修正：新增空值檢查 **
                                      if (protectionLow) {
                                         for (let j = i + 1; j < candles.length; j++) {
                                             if (candles[j].close < protectionLow.price) {
