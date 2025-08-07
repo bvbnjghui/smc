@@ -1,0 +1,66 @@
+<!-- smc/components/simulation-results-modal.html -->
+<div x-show="isSimulationModalOpen" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" x-transition>
+    <div @click.outside="isSimulationModalOpen = false" class="bg-gray-800 rounded-2xl shadow-lg w-full max-w-4xl max-h-[90vh] flex flex-col p-6" x-show="isSimulationModalOpen" x-transition.scale>
+         <div class="flex justify-between items-center mb-4 flex-shrink-0">
+            <h2 class="text-2xl font-bold text-teal-400">回測模擬結果</h2>
+            <button @click="isSimulationModalOpen = false" class="p-1 rounded-full hover:bg-gray-700">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div class="overflow-y-auto">
+            <template x-if="simulationResults">
+                <div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
+                        <div class="bg-gray-700 p-4 rounded-lg">
+                            <div class="text-sm text-gray-400">最終權益</div>
+                            <div class="text-2xl font-bold" :class="simulationResults.netPnl > 0 ? 'text-green-400' : 'text-red-400'" x-text="`$${simulationResults.finalEquity.toFixed(2)}`"></div>
+                        </div>
+                        <div class="bg-gray-700 p-4 rounded-lg">
+                            <div class="text-sm text-gray-400">總盈虧</div>
+                            <div class="text-2xl font-bold" :class="simulationResults.netPnl > 0 ? 'text-green-400' : 'text-red-400'" x-text="`${simulationResults.netPnl > 0 ? '+' : ''}$${simulationResults.netPnl.toFixed(2)} (${simulationResults.pnlPercent.toFixed(2)}%)`"></div>
+                        </div>
+                        <div class="bg-gray-700 p-4 rounded-lg">
+                            <div class="text-sm text-gray-400">勝率</div>
+                            <div class="text-2xl font-bold text-teal-400" x-text="`${simulationResults.winRate.toFixed(2)}%`"></div>
+                        </div>
+                        <div class="bg-gray-700 p-4 rounded-lg">
+                            <div class="text-sm text-gray-400">總交易數</div>
+                            <div class="text-2xl font-bold" x-text="simulationResults.totalTrades"></div>
+                        </div>
+                    </div>
+                    <div class="w-full text-left text-sm">
+                        <div class="bg-gray-700 grid grid-cols-5 gap-2 p-2 font-bold rounded-t-lg">
+                            <div>方向</div>
+                            <div>進場時間</div>
+                            <div>進場價格</div>
+                            <div>出場價格</div>
+                            <div>盈虧 ($)</div>
+                        </div>
+                        <div class="max-h-64 overflow-y-auto">
+                            <template x-for="(trade, index) in simulationResults.trades" :key="index">
+                                <div class="grid grid-cols-5 gap-2 p-2 border-b border-gray-700">
+                                    <div :class="trade.direction === 'LONG' ? 'text-green-400' : 'text-red-400'" x-text="trade.direction"></div>
+                                    <div x-text="new Date(trade.entryTime * 1000).toLocaleString()"></div>
+                                    <div x-text="trade.entryPrice.toFixed(4)"></div>
+                                    <div x-text="trade.exitPrice.toFixed(4)"></div>
+                                    <div :class="trade.pnl > 0 ? 'text-green-400' : 'text-red-400'" x-text="trade.pnl.toFixed(2)"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            <template x-if="!simulationResults">
+                <p class="text-center text-gray-400">沒有可顯示的回測結果。</p>
+            </template>
+        </div>
+        <div class="mt-6 pt-4 border-t border-gray-700 flex-shrink-0 flex items-center justify-end space-x-4">
+            <button @click="rerunWithNewSettings()" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-300">
+                調整設定並重新模擬
+            </button>
+            <button @click="isSimulationModalOpen = false" class="bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-300">
+                關閉
+            </button>
+        </div>
+    </div>
+</div>

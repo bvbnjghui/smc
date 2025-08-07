@@ -1,11 +1,17 @@
-// 定義快取名稱和需要快取的檔案
-const CACHE_NAME = 'smc-analyzer-cache-v2'; // 更新版本號以觸發更新
+// smc/sw.js
+
+// ** 修改：更新快取版本號以觸發 Service Worker 更新 **
+const CACHE_NAME = 'smc-analyzer-cache-v3'; 
+// ** 修改：將新的模組檔案加入快取列表 **
 const URLS_TO_CACHE = [
-  // ** 修正：更新為絕對路徑 **
   '/smc/',
   '/smc/index.html',
   '/smc/main.js',
-  'https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js',
+  '/smc/modules/api.js',
+  '/smc/modules/smc-analyzer.js',
+  '/smc/modules/chart-controller.js',
+  '/smc/modules/backtester.js',
+  'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js',
   'https://cdn.tailwindcss.com',
   'https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js',
   'https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js'
@@ -13,11 +19,12 @@ const URLS_TO_CACHE = [
 
 // 安裝 Service Worker
 self.addEventListener('install', event => {
-  // 等待快取完成
+  // 確保 Service Worker 不會在快取完成前被啟用
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Opened cache');
+        console.log('快取已開啟');
+        // 使用 addAll 一次性快取所有核心檔案
         return cache.addAll(URLS_TO_CACHE);
       })
   );
@@ -25,53 +32,55 @@ self.addEventListener('install', event => {
 
 // 攔截網路請求
 self.addEventListener('fetch', event => {
-  // 對於 API 請求，永遠使用網路優先策略，不進行快取
-  if (event.request.url.includes('/api/klines')) {
-    return fetch(event.request);
+  // 對於後端 API 請求，永遠使用網路優先策略 (Network First)，不從快取讀取
+  if (event.request.url.includes('/api/')) {
+    event.respondWith(fetch(event.request));
+    return;
   }
 
+  // 對於其他靜態資源，使用快取優先策略 (Cache First)
   event.respondWith(
-    // 嘗試從快取中尋找請求
     caches.match(event.request)
       .then(response => {
-        // 如果快取中存在，則直接回傳快取的資源
+        // 如果快取中存在對應的回應，則直接回傳
         if (response) {
           return response;
         }
 
         // 如果快取中不存在，則透過網路請求
         return fetch(event.request).then(
-          response => {
+          networkResponse => {
             // 如果請求失敗，或不是我們要快取的類型，則直接回傳
-            // 注意：CDN 回應的 type 是 'cors'，所以我們放寬 'basic' 的限制
-            if (!response || response.status !== 200) {
-              return response;
+            if (!networkResponse || networkResponse.status !== 200) {
+              return networkResponse;
             }
 
             // 複製一份請求的回應，因為 request 和 response 都是 stream，只能被使用一次
-            const responseToCache = response.clone();
+            const responseToCache = networkResponse.clone();
 
             caches.open(CACHE_NAME)
               .then(cache => {
+                // 將新的回應存入快取
                 cache.put(event.request, responseToCache);
               });
 
-            return response;
+            return networkResponse;
           }
         );
       })
   );
 });
 
-// 啟用新的 Service Worker，並刪除舊的快取
+// 啟用新的 Service Worker，並刪除舊版本的快取
 self.addEventListener('activate', event => {
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
+          // 如果快取名稱不在白名單中，則刪除它
           if (cacheWhitelist.indexOf(cacheName) === -1) {
-            console.log('Deleting old cache:', cacheName);
+            console.log('正在刪除舊快取:', cacheName);
             return caches.delete(cacheName);
           }
         })

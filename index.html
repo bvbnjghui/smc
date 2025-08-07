@@ -9,28 +9,18 @@
     <link rel="manifest" href="/smc/manifest.json">
     <meta name="theme-color" content="#10b981">
 
-    <!-- Tailwind CSS CDN for styling -->
+    <!-- 樣式與圖表庫 -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lightweight Charts CDN (v3.8.0) -->
-    <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
-    
-    <!-- Alpine.js & Plugins -->
-    <script src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-    <script src="/smc/main.js" defer></script>
-    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 
     <style>
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Inter', sans-serif, 'Noto Sans TC';
         }
         #chart {
-            height: 600px;
+            height: calc(100vh - 200px);
+            min-height: 400px;
         }
-        /* Alpine.js transition styles */
-        .transition-max-h {
-            transition: max-height 0.3s ease-in-out;
-        }
-        /* Custom styles for the toggle switch */
         .toggle-checkbox:checked {
             right: 0;
             border-color: #10b981;
@@ -40,179 +30,34 @@
         }
         .sidebar-content::-webkit-scrollbar {
             width: 0px;
-            background: transparent; /* make scrollbar transparent */
+            background: transparent;
         }
         .sidebar-content {
-            -ms-overflow-style: none;  /* IE and Edge */
-            scrollbar-width: none;  /* Firefox */
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-200">
 
     <div class="max-w-7xl mx-auto" x-data="app">
-        <!-- 側邊欄 -->
-        <aside 
-            class="fixed top-0 left-0 h-full w-64 bg-gray-800 shadow-lg z-50 transform transition-transform duration-300 ease-in-out"
-            :class="{ 'translate-x-0': isSidebarOpen, '-translate-x-full': !isSidebarOpen }"
-        >
-            <div class="p-4 flex flex-col h-full">
-                <h2 class="text-2xl font-bold text-teal-400 mb-6 flex-shrink-0">設定</h2>
-                <div class="space-y-6 flex-grow overflow-y-auto pr-2 sidebar-content">
-                    <div class="space-y-2">
-                        <label for="symbol-preset" class="text-gray-400">交易對:</label>
-                        <select id="symbol-preset" x-model="selectedPreset" @change="stopAutoUpdate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase">
-                            <template x-for="preset in commonSymbols">
-                                <option :value="preset" x-text="preset" :selected="preset === selectedPreset"></option>
-                            </template>
-                            <option value="CUSTOM" :selected="'CUSTOM' === selectedPreset">其他...</option>
-                        </select>
-                    </div>
-                    <div x-show="selectedPreset === 'CUSTOM'" class="space-y-2">
-                        <label for="custom-symbol" class="text-gray-400">自訂交易對:</label>
-                        <input type="text" id="custom-symbol" x-model="customSymbol" @change="stopAutoUpdate" placeholder="例如：BNBUSDT" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase placeholder-gray-500">
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="interval" class="text-gray-400">週期:</label>
-                        <select id="interval" x-model="interval" @change="stopAutoUpdate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                            <template x-for="option in intervals">
-                                <option :value="option.value" x-text="option.label" :selected="option.value === interval"></option>
-                            </template>
-                        </select>
-                    </div>
-                    
-                    <button @click="fetchData(); isSidebarOpen = false" :disabled="isLoading" class="w-full bg-teal-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-teal-700 transition duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span x-show="!isLoading && !isBacktestMode">載入數據</span>
-                        <span x-show="!isLoading && isBacktestMode">載入回測數據</span>
-                        <span x-show="isLoading">載入中...</span>
-                    </button>
-                    
-                    <div class="space-y-4 pt-4 border-t border-gray-700">
-                        <div class="flex items-center justify-between text-gray-400">
-                            <span>回測模式</span>
-                            <div class="relative inline-block w-10 align-middle select-none">
-                                <input type="checkbox" id="backtestMode" x-model="isBacktestMode" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                                <label for="backtestMode" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
-                            </div>
-                        </div>
-                        <div x-show="isBacktestMode" x-collapse class="space-y-2">
-                            <div>
-                                <label for="startDate" class="text-sm text-gray-400">開始日期:</label>
-                                <input type="date" id="startDate" x-model="backtestStartDate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                            </div>
-                             <div>
-                                <label for="endDate" class="text-sm text-gray-400">結束日期:</label>
-                                <input type="date" id="endDate" x-model="backtestEndDate" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                            </div>
-                        </div>
-                    </div>
-
-                    <div x-show="isBacktestMode" class="space-y-4 pt-4 border-t border-gray-700">
-                        <h3 class="text-lg font-semibold text-gray-300">策略回測模擬</h3>
-                        <div class="space-y-2">
-                            <label for="investmentAmount" class="text-sm text-gray-400">初始金額 ($):</label>
-                            <input type="number" id="investmentAmount" x-model.number="investmentAmount" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                        </div>
-                        <div class="space-y-2">
-                            <label for="riskPerTrade" class="text-sm text-gray-400">單一訊號風險 (%):</label>
-                            <input type="number" id="riskPerTrade" x-model.number="riskPerTrade" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                        </div>
-                        <div class="space-y-2">
-                            <label for="riskMultiGrab2" class="text-sm text-gray-400">雙重訊號風險 (%):</label>
-                            <input type="number" id="riskMultiGrab2" x-model.number="riskMultiGrab2" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                        </div>
-                        <div class="space-y-2">
-                            <label for="riskMultiGrab3plus" class="text-sm text-gray-400">多重(3+)訊號風險 (%):</label>
-                            <input type="number" id="riskMultiGrab3plus" x-model.number="riskMultiGrab3plus" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                        </div>
-                        <div class="space-y-2">
-                            <label for="rrRatio" class="text-sm text-gray-400">風險回報比 (1:X):</label>
-                            <input type="number" id="rrRatio" x-model.number="rrRatio" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                        </div>
-                        <button @click="runBacktestSimulation" :disabled="isSimulating || currentCandles.length === 0" class="w-full bg-indigo-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-indigo-700 transition duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                            <span x-show="!isSimulating">執行策略模擬</span>
-                            <span x-show="isSimulating">模擬中...</span>
-                        </button>
-                    </div>
-                    
-                    <div class="space-y-4 pt-4 border-t border-gray-700">
-                        <h3 class="text-lg font-semibold text-gray-300">圖表顯示</h3>
-                        <div class="flex items-center justify-between text-gray-400">
-                            <span>流動性 (BSL/SSL)</span>
-                            <div class="relative inline-block w-10 align-middle select-none">
-                                <input type="checkbox" id="showLiquidity" x-model="showLiquidity" @change="redrawAllAnalyses" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                                <label for="showLiquidity" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between text-gray-400">
-                            <span>市場結構轉變 (MSS)</span>
-                            <div class="relative inline-block w-10 align-middle select-none">
-                                <input type="checkbox" id="showMSS" x-model="showMSS" @change="redrawAllAnalyses" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                                <label for="showMSS" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between text-gray-400">
-                            <span>訂單塊 (OB)</span>
-                            <div class="relative inline-block w-10 align-middle select-none">
-                                <input type="checkbox" id="showOrderBlocks" x-model="showOrderBlocks" @change="redrawAllAnalyses" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                                <label for="showOrderBlocks" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-between text-gray-400">
-                            <span>公平價值缺口 (FVG)</span>
-                            <div class="relative inline-block w-10 align-middle select-none">
-                                <input type="checkbox" id="showFVGs" x-model="showFVGs" @change="redrawAllAnalyses" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                                <label for="showFVGs" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center justify-between space-x-2 text-gray-400 pt-4 border-t border-gray-700" :class="{ 'opacity-50': isBacktestMode }">
-                        <span>自動更新</span>
-                        <div class="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
-                            <input type="checkbox" name="toggle" id="toggle" x-model="autoUpdate" @change="toggleAutoUpdate" :disabled="isBacktestMode" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                            <label for="toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
-                        </div>
-                    </div>
-                </div>
-                <div class="mt-auto flex-shrink-0">
-                     <button @click="isHelpModalOpen = true; isSidebarOpen = false" class="w-full text-left text-gray-300 hover:bg-gray-700 hover:text-white p-3 rounded-md flex items-center space-x-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.79 4 4 0 1.152-.468 2.19-1.228 2.967-.76.776-1.805 1.287-3.033 1.615A2.25 2.25 0 0113 18h-1a2.25 2.25 0 01-2.25-2.25V15.25a2.25 2.25 0 011.5-2.122zM12 6v.01M12 18v.01"></path></svg>
-                        <span>如何解讀圖表?</span>
-                    </button>
-                </div>
-            </div>
-        </aside>
+        <!-- 元件佔位符 -->
+        <div id="sidebar-container"></div>
+        <div id="modals-container"></div>
 
         <!-- 遮罩層 -->
         <div 
             x-show="isSidebarOpen" 
             @click="isSidebarOpen = false" 
             class="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
-            x-transition:enter="ease-out duration-300"
-            x-transition:enter-start="opacity-0"
-            x-transition:enter-end="opacity-100"
-            x-transition:leave="ease-in duration-200"
-            x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0"
+            x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+            x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
         ></div>
 
         <!-- 主內容區 -->
-        <main class="p-4 md:p-8">
-            <header class="sticky top-0 z-30 bg-gray-900/80 backdrop-blur-sm shadow-md py-4 px-4 md:px-8 mb-8 flex items-center justify-between">
-                <button @click="isSidebarOpen = true" class="p-2 rounded-md hover:bg-gray-700">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                </button>
-                
-                <div class="text-center">
-                    <h1 class="text-2xl md:text-3xl font-bold text-teal-400">SMC 策略分析儀</h1>
-                </div>
-
-                <button @click="fetchData()" :disabled="isLoading || isBacktestMode" class="p-2 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <svg class="w-6 h-6" :class="{'animate-spin': isLoading}" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"></path></svg>
-                </button>
-            </header>
-
+        <main class="p-4 md:p-8 transition-all duration-300" :class="{'md:ml-64': isSidebarOpen}">
+            <div id="header-container"></div>
+            
             <div id="chart" class="bg-gray-800 rounded-2xl shadow-lg"></div>
 
             <div x-show="error" class="bg-red-900 text-red-200 p-4 rounded-xl mt-8 text-center" x-text="error"></div>
@@ -223,244 +68,17 @@
                 </p>
             </footer>
         </main>
-
-        <!-- 說明 Modal -->
-        <div 
-            x-show="isHelpModalOpen" 
-            class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            x-transition:enter="ease-out duration-300"
-            x-transition:enter-start="opacity-0"
-            x-transition:enter-end="opacity-100"
-            x-transition:leave="ease-in duration-200"
-            x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0"
-        >
-            <div 
-                @click.outside="isHelpModalOpen = false" 
-                class="bg-gray-800 rounded-2xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6"
-                x-show="isHelpModalOpen"
-                x-transition:enter="ease-out duration-300"
-                x-transition:enter-start="opacity-0 scale-95"
-                x-transition:enter-end="opacity-100 scale-100"
-                x-transition:leave="ease-in duration-200"
-                x-transition:leave-start="opacity-100 scale-100"
-                x-transition:leave-end="opacity-0 scale-95"
-            >
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold text-teal-400">如何解讀圖表</h2>
-                    <button @click="isHelpModalOpen = false" class="p-1 rounded-full hover:bg-gray-700">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
-                </div>
-                <div class="space-y-4" x-data="{ open: 'strategy' }">
-                    <!-- 綜合交易策略 -->
-                    <div class="border-b border-gray-700 pb-2">
-                        <button @click="open = open === 'strategy' ? '' : 'strategy'" class="w-full text-left">
-                            <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                                <span>綜合交易策略範例</span>
-                                <span x-show="open !== 'strategy'">&#9662;</span>
-                                <span x-show="open === 'strategy'">&#9652;</span>
-                            </h3>
-                        </button>
-                        <div x-show="open === 'strategy'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                            <p>一個典型的、高勝率的 SMC 交易劇本通常包含以下三個步驟：</p>
-                            <ol class="list-decimal list-inside space-y-1">
-                                <li><strong>流動性掠奪 (Liquidity Grab)</strong>：市場主力先收割場上的流動性（停損單）。</li>
-                                <li><strong>結構轉變 (Market Structure Shift)</strong>：價格在掠奪後，出現反轉的意圖。</li>
-                                <li><strong>回到入場區 (Return to POI)</strong>：價格回到聰明錢的佈局區域（訂單塊或 FVG），這是我們尋找進場機會的地方。</li>
-                            </ol>
-                        </div>
-                    </div>
-                    <!-- 流動性掠奪 -->
-                    <div class="border-b border-gray-700 pb-2">
-                        <button @click="open = open === 'liquidity' ? '' : 'liquidity'" class="w-full text-left">
-                            <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                                <span>1. 流動性掠奪 (BSL / SSL)</span>
-                                <span x-show="open !== 'liquidity'">&#9662;</span>
-                                <span x-show="open === 'liquidity'">&#9652;</span>
-                            </h3>
-                        </button>
-                        <div x-show="open === 'liquidity'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                            <p>這是最重要的「訊號」，告訴您市場趨勢可能即將反轉。</p>
-                            <ul class="list-disc list-inside space-y-1">
-                                <li><strong class="text-red-400">BSL (紅色向下箭頭)</strong>: 價格向上突破波段高點。看到此訊號，應開始尋找 <strong class="text-red-400">做空</strong> 的機會。</li>
-                                <li><strong class="text-green-400">SSL (綠色向上箭頭)</strong>: 價格向下跌破波段低點。看到此訊號，應開始尋找 <strong class="text-green-400">做多</strong> 的機會。</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <!-- MSS 說明 -->
-                    <div class="border-b border-gray-700 pb-2">
-                        <button @click="open = open === 'mss' ? '' : 'mss'" class="w-full text-left">
-                            <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                                <span>2. 市場結構轉變 (MSS)</span>
-                                <span x-show="open !== 'mss'">&#9662;</span>
-                                <span x-show="open === 'mss'">&#9652;</span>
-                            </h3>
-                        </button>
-                        <div x-show="open === 'mss'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                            <p>這是「確認」訊號，代表市場的反轉意圖已非常明確。</p>
-                             <ul class="list-disc list-inside space-y-1">
-                                <li><strong class="text-blue-400">MSS (藍色虛線與標記)</strong>: 在流動性掠奪後，價格反向突破了前一個波段高/低點。</li>
-                                <li>這是交易策略的「綠燈」，只有在 MSS 確認後，才應該開始尋找下方的進場區。</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <!-- 訂單塊 -->
-                    <div class="border-b border-gray-700 pb-2">
-                        <button @click="open = open === 'ob' ? '' : 'ob'" class="w-full text-left">
-                             <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                                <span>3. 訂單塊 (Order Block - 實線)</span>
-                                <span x-show="open !== 'ob'">&#9662;</span>
-                                <span x-show="open === 'ob'">&#9652;</span>
-                            </h3>
-                        </button>
-                        <div x-show="open === 'ob'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                            <p>這是最理想的「進場區」，提供了絕佳的風險回報比。</p>
-                             <ul class="list-disc list-inside space-y-1">
-                                <li><strong class="text-red-400">看跌 OB (紅色實線)</strong>: 在價格大幅下跌前，最後一根上漲的 K 線。</li>
-                                <li><strong class="text-green-400">看漲 OB (綠色實線)</strong>: 在價格大幅上漲前，最後一根下跌的 K 線。</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <!-- FVG -->
-                    <div class="border-b border-gray-700 pb-2">
-                        <button @click="open = open === 'fvg' ? '' : 'fvg'" class="w-full text-left">
-                            <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                                <span>4. 公平價值缺口 (FVG - 虛線)</span>
-                                <span x-show="open !== 'fvg'">&#9662;</span>
-                                <span x-show="open === 'fvg'">&#9652;</span>
-                            </h3>
-                        </button>
-                        <div x-show="open === 'fvg'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                           <p>這是價格的「磁鐵區」，價格會被吸引回來填補缺口。</p>
-                             <ul class="list-disc list-inside space-y-1">
-                                <li><strong class="text-red-400">看跌 FVG (紅色虛線)</strong>: 價格快速下跌時留下的真空地帶。</li>
-                                <li><strong class="text-green-400">看漲 FVG (綠色虛線)</strong>: 價格快速上漲時留下的真空地帶。</li>
-                                <li>當訂單塊 (OB) 和 FVG 重疊時，該區域的支撐或壓力會非常強大。</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <!-- 如何設定多空策略 (進階) -->
-                    <div>
-                        <button @click="open = open === 'advanced' ? '' : 'advanced'" class="w-full text-left">
-                             <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                                <span>如何設定多空策略 (進階)</span>
-                                <span x-show="open !== 'advanced'">&#9662;</span>
-                                <span x-show="open === 'advanced'">&#9652;</span>
-                            </h3>
-                        </button>
-                        <div x-show="open === 'advanced'" x-collapse class="mt-2 text-gray-300 space-y-4">
-                            <div class="p-3 bg-yellow-900/50 text-yellow-200 rounded-lg text-sm">
-                                <strong>重要提醒：</strong>以下內容僅為策略教學範例，不構成任何投資建議。所有交易皆有風險，請務必做好個人研究與風險管理。
-                            </div>
-                            <div>
-                                <h4 class="text-lg font-semibold text-green-400">做多策略 (Long Position)</h4>
-                                <ul class="list-disc list-inside space-y-2 mt-2">
-                                    <li><strong>進場點 (Entry):</strong> 當出現 <strong>SSL (綠色箭頭)</strong> 後，等待價格回落至最近的<strong>綠色區域 (看漲 OB 或 FVG)</strong>。可在此區域的上緣或中間位置設定限價單。</li>
-                                    <li><strong>止損點 (Stop-Loss):</strong> 設定在您所依據的那個<strong>綠色區域的最低點再稍低一點</strong>的位置。</li>
-                                    <li><strong>止盈點 (Take-Profit):</strong> 目標可設為上方的波段高點、<strong>紅色區域 (看跌 OB 或 FVG)</strong>，或是一個曾出現過 <strong>BSL (紅色箭頭)</strong> 的價位。</li>
-                                </ul>
-                            </div>
-                            <div>
-                                <h4 class="text-lg font-semibold text-red-400">做空策略 (Short Position)</h4>
-                                <ul class="list-disc list-inside space-y-2 mt-2">
-                                    <li><strong>進場點 (Entry):</strong> 當出現 <strong>BSL (紅色箭頭)</strong> 後，等待價格反彈至最近的<strong>紅色區域 (看跌 OB 或 FVG)</strong>。可在此區域的下緣或中間位置設定限價單。</li>
-                                    <li><strong>止損點 (Stop-Loss):</strong> 設定在您所依據的那個<strong>紅色區域的最高點再稍高一點</strong>的位置。</li>
-                                    <li><strong>止盈點 (Take-Profit):</strong> 目標可設為下方的波段低點、<strong>綠色區域 (看漲 OB 或 FVG)</strong>，或是一個曾出現過 <strong>SSL (綠色箭頭)</strong> 的價位。</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ** 修正：新增回測結果 Modal ** -->
-        <div 
-            x-show="isSimulationModalOpen" 
-            class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-            x-transition:enter="ease-out duration-300"
-            x-transition:enter-start="opacity-0"
-            x-transition:enter-end="opacity-100"
-            x-transition:leave="ease-in duration-200"
-            x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0"
-        >
-            <div 
-                @click.outside="isSimulationModalOpen = false" 
-                class="bg-gray-800 rounded-2xl shadow-lg w-full max-w-4xl max-h-[90vh] flex flex-col p-6"
-                x-show="isSimulationModalOpen"
-                x-transition:enter="ease-out duration-300"
-                x-transition:enter-start="opacity-0 scale-95"
-                x-transition:enter-end="opacity-100 scale-100"
-                x-transition:leave="ease-in duration-200"
-                x-transition:leave-start="opacity-100 scale-100"
-                x-transition:leave-end="opacity-0 scale-95"
-            >
-                <div class="flex justify-between items-center mb-4 flex-shrink-0">
-                    <h2 class="text-2xl font-bold text-teal-400">回測模擬結果</h2>
-                    <button @click="isSimulationModalOpen = false" class="p-1 rounded-full hover:bg-gray-700">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
-                </div>
-                <div class="overflow-y-auto">
-                    <template x-if="simulationResults">
-                        <div>
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
-                                <div class="bg-gray-700 p-4 rounded-lg">
-                                    <div class="text-sm text-gray-400">最終權益</div>
-                                    <div class="text-2xl font-bold" :class="simulationResults.netPnl > 0 ? 'text-green-400' : 'text-red-400'" x-text="`$${simulationResults.finalEquity.toFixed(2)}`"></div>
-                                </div>
-                                <div class="bg-gray-700 p-4 rounded-lg">
-                                    <div class="text-sm text-gray-400">總盈虧</div>
-                                    <div class="text-2xl font-bold" :class="simulationResults.netPnl > 0 ? 'text-green-400' : 'text-red-400'" x-text="`${simulationResults.netPnl > 0 ? '+' : ''}$${simulationResults.netPnl.toFixed(2)} (${simulationResults.pnlPercent.toFixed(2)}%)`"></div>
-                                </div>
-                                <div class="bg-gray-700 p-4 rounded-lg">
-                                    <div class="text-sm text-gray-400">勝率</div>
-                                    <div class="text-2xl font-bold text-teal-400" x-text="`${simulationResults.winRate.toFixed(2)}%`"></div>
-                                </div>
-                                <div class="bg-gray-700 p-4 rounded-lg">
-                                    <div class="text-sm text-gray-400">總交易數</div>
-                                    <div class="text-2xl font-bold" x-text="simulationResults.totalTrades"></div>
-                                </div>
-                            </div>
-                            <div class="w-full text-left text-sm">
-                                <div class="bg-gray-700 grid grid-cols-5 gap-2 p-2 font-bold rounded-t-lg">
-                                    <div>方向</div>
-                                    <div>進場時間</div>
-                                    <div>進場價格</div>
-                                    <div>出場價格</div>
-                                    <div>盈虧 ($)</div>
-                                </div>
-                                <div class="max-h-64 overflow-y-auto">
-                                    <template x-for="(trade, index) in simulationResults.trades" :key="index">
-                                        <div class="grid grid-cols-5 gap-2 p-2 border-b border-gray-700">
-                                            <div :class="trade.direction === 'LONG' ? 'text-green-400' : 'text-red-400'" x-text="trade.direction"></div>
-                                            <div x-text="new Date(trade.entryTime * 1000).toLocaleString()"></div>
-                                            <div x-text="trade.entryPrice.toFixed(4)"></div>
-                                            <div x-text="trade.exitPrice.toFixed(4)"></div>
-                                            <div :class="trade.pnl > 0 ? 'text-green-400' : 'text-red-400'" x-text="trade.pnl.toFixed(2)"></div>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                    <template x-if="!simulationResults">
-                        <p class="text-center text-gray-400">沒有可顯示的回測結果。</p>
-                    </template>
-                </div>
-            </div>
-        </div>
     </div>
+    
+    <script type="module" src="/smc/main.js"></script>
     
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/smc/sw.js').then(registration => {
-                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    console.log('ServiceWorker 註冊成功，範圍: ', registration.scope);
                 }, err => {
-                    console.log('ServiceWorker registration failed: ', err);
+                    console.log('ServiceWorker 註冊失敗: ', err);
                 });
             });
         }

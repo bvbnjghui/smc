@@ -2,16 +2,16 @@ SMC 策略分析儀
 這是一個基於 Smart Money Concept (SMC) 交易策略的網頁應用程式，旨在自動化分析加密貨幣市場的 K 線數據，並在圖表上標示出關鍵的市場結構，以輔助交易決策。
 此應用程式具備 PWA (Progressive Web App) 功能，可以被「安裝」至桌面或手機主畫面，並支援離線存取。
 專案架構
-本專案採用前後端分離的架構：
+本專案採用前後端分離的架構，並將前端邏輯進行了模組化拆分，以提高可維護性與可讀性。
 前端 (Frontend)
 技術棧: HTML, Tailwind CSS, Alpine.js, TradingView Lightweight Charts
-檔案: index.html, main.js, sw.js, manifest.json
+檔案: index.html, main.js, sw.js, manifest.json, modules/
 部署: 部署為靜態網站，例如 GitHub Pages。
 核心功能:
 提供使用者介面，讓使用者可以設定交易對、時間週期等參數。
 使用 TradingView Lightweight Charts 繪製 K 線與交易量圖表。
 透過 Alpine.js 處理所有使用者互動與狀態管理。
-在客戶端 (Client-Side) 執行所有 SMC 策略的分析與計算。
+將核心邏輯拆分為獨立模組，在客戶端 (Client-Side) 執行所有 SMC 策略的分析與計算。
 向後端 API 請求 K 線數據。
 透過 Service Worker (sw.js) 實現 PWA 的離線快取功能。
 後端 (Backend)
@@ -23,11 +23,11 @@ SMC 策略分析儀
 提供兩個主要的 API 端點，負責從幣安 (Binance) 的公開 API 獲取 K 線數據。
 處理 CORS (跨來源資源共用) 問題，允許前端網頁的請求。
 數據流程
-使用者在前端介面設定好參數。
-前端 main.js 根據使用者選擇的模式（即時或回測），向後端對應的 API 端點發送請求。
+使用者在前端介面 (index.html) 設定好參數。
+前端主檔案 (main.js) 捕捉到設定變更，呼叫 api.js 模組向後端發送請求。
 後端 server.js 收到請求後，向幣安 API 請求對應的 K 線數據。
 後端將從幣安獲取的原始數據以 JSON 格式回傳給前端。
-前端接收到數據後，進行 SMC 策略分析，並將 K 線與分析結果繪製在圖表上。
+前端 main.js 接收到數據後，將其交給 smc-analyzer.js 進行分析，再由 chart-controller.js 將 K 線與分析結果繪製在圖表上。
 檔案功能說明
 index.html
 功能: 應用程式的主體 HTML 結構。
@@ -36,26 +36,21 @@ index.html
 引入所有必要的 CSS 與 JavaScript 檔案 (Tailwind, Lightweight Charts, Alpine.js, main.js 等)。
 透過 Alpine.js 的 x-data, x-show, x-model 等指令，將 HTML 元素與 main.js 中的狀態進行綁定。
 main.js
-功能: 應用程式的核心前端邏輯。
+功能: 應用程式的主入口與協調者。
 職責:
-使用 Alpine.data('app', ...) 註冊一個全域的 Alpine.js 元件，管理所有狀態與方法。
-設定管理:
-init(): 在頁面載入時，從 localStorage 讀取使用者上次的設定。
-saveSettings(): 當使用者更改任何設定時，自動將其儲存至 localStorage。
-圖表控制:
-setupChart(): 初始化 TradingView 圖表，並設定外觀、座標軸、縮放等行為。
-fetchData(): 根據當前是「即時模式」還是「回測模式」，向後端對應的 API 發送請求以獲取數據。
-SMC 分析引擎:
-analyzeAll(): 統一呼叫所有分析函式的入口。
-analyzeAndGetSwingPoints(): 找出所有的波段高/低點。
-analyzeLiquidityGrabs(): 根據波段點，找出流動性掠奪 (BSL/SSL) 事件。
-analyzeAndGetMSS(): 根據流動性掠奪，找出市場結構轉變 (MSS) 事件，並包含失效規則。
-analyzeAndGetOrderBlocks(): 找出所有訂單塊 (OB)，並包含緩解 (Mitigation) 過濾規則。
-analyzeAndGetFVGs(): 找出所有公平價值缺口 (FVG)，並包含緩解過濾規則。
-繪圖邏輯:
-redrawAllAnalyses(): 根據使用者的顯示設定 (開關)，將分析結果繪製到圖表上。
-回測模擬:
-runBacktestSimulation(): 核心的回測引擎，採用「狀態機」模式，模擬一個完整的交易劇本（等待訊號 -> 等待確認 -> 等待進場），並計算最終績效。
+使用 Alpine.data('app', ...) 註冊一個全域的 Alpine.js 元件，管理所有 UI 相關的狀態與方法。
+整合與調度：匯入所有 modules/ 中的模組，並在適當的時機（如使用者互動、數據載入後）呼叫它們，將各個模組的功能串接起來。
+狀態管理: 處理所有需要與 UI 互動的狀態，例如 isLoading, error, isSidebarOpen 等。
+設定管理: 在頁面載入時從 localStorage 讀取使用者設定，並在設定變更時自動儲存。
+modules/ (前端核心模組)
+api.js:
+職責: 專門處理所有與後端 API 的通訊。封裝了 fetch 邏輯，並根據是否為回測模式來請求不同的 API 端點。
+smc-analyzer.js:
+職責: 核心 SMC 分析引擎。包含所有 SMC 概念的計算邏輯（如 BSL/SSL, MSS, OB, FVG）。此模組為純函式，接收 K 線數據，回傳分析結果，不依賴任何外部狀態或 DOM。
+chart-controller.js:
+職責: 圖表控制器。封裝所有與 Lightweight Charts 相關的操作，包括圖表的初始化 (setupChart)、數據更新 (updateChartData) 以及將分析結果繪製到圖表上 (redrawAllAnalyses)。
+backtester.js:
+職責: 獨立的回測模擬引擎。採用「狀態機」模式，接收歷史 K 線數據與策略設定，模擬一個完整的交易劇本（等待訊號 -> 等待確認 -> 等待進場），並計算最終績效。
 server.js
 功能: 後端 API 伺服器。
 職責:
