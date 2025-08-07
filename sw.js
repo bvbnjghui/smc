@@ -1,8 +1,7 @@
 // smc/sw.js
 
 // ** 修改：更新快取版本號以觸發 Service Worker 更新 **
-const CACHE_NAME = 'smc-analyzer-cache-v4'; 
-// ** 修改：將新的元件檔案加入快取列表 **
+const CACHE_NAME = 'smc-analyzer-cache-v5'; 
 const URLS_TO_CACHE = [
   // 核心 Shell
   '/smc/',
@@ -32,72 +31,69 @@ const URLS_TO_CACHE = [
 
 // 安裝 Service Worker
 self.addEventListener('install', event => {
-  // 確保 Service Worker 不會在快取完成前被啟用
+  console.log('Service Worker 正在安裝...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
         console.log('快取已開啟，正在快取核心檔案...');
-        // 使用 addAll 一次性快取所有核心檔案
         return cache.addAll(URLS_TO_CACHE);
       })
-  );
-});
-
-// 攔截網路請求
-self.addEventListener('fetch', event => {
-  // 對於後端 API 請求，永遠使用網路優先策略 (Network First)，不從快取讀取
-  if (event.request.url.includes('/api/')) {
-    event.respondWith(fetch(event.request));
-    return;
-  }
-
-  // 對於其他靜態資源，使用快取優先策略 (Cache First)
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // 如果快取中存在對應的回應，則直接回傳
-        if (response) {
-          return response;
-        }
-
-        // 如果快取中不存在，則透過網路請求
-        return fetch(event.request).then(
-          networkResponse => {
-            // 如果請求失敗，或不是我們要快取的類型，則直接回傳
-            if (!networkResponse || networkResponse.status !== 200) {
-              return networkResponse;
-            }
-
-            // 複製一份請求的回應，因為 request 和 response 都是 stream，只能被使用一次
-            const responseToCache = networkResponse.clone();
-
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                // 將新的回應存入快取
-                cache.put(event.request, responseToCache);
-              });
-
-            return networkResponse;
-          }
-        );
+      .then(() => {
+        // ** 新增：強制新的 Service Worker 立即啟用 **
+        console.log('所有核心檔案快取完畢，強制啟用 Service Worker。');
+        return self.skipWaiting();
       })
   );
 });
 
-// 啟用新的 Service Worker，並刪除舊版本的快取
+// 啟用新的 Service Worker
 self.addEventListener('activate', event => {
+  console.log('Service Worker 正在啟用...');
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          // 如果快取名稱不在白名單中，則刪除它
           if (cacheWhitelist.indexOf(cacheName) === -1) {
             console.log('正在刪除舊快取:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
+    }).then(() => {
+      // ** 新增：讓 Service Worker 立即接管所有分頁 **
+      console.log('舊快取已清除，Service Worker 已接管控制權。');
+      return self.clients.claim();
     })
+  );
+});
+
+// 攔截網路請求
+self.addEventListener('fetch', event => {
+  if (event.request.url.includes('/api/')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        if (response) {
+          return response;
+        }
+        return fetch(event.request).then(
+          networkResponse => {
+            if (!networkResponse || networkResponse.status !== 200) {
+              return networkResponse;
+            }
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME)
+              .then(cache => {
+                cache.put(event.request, responseToCache);
+              });
+            return networkResponse;
+          }
+        );
+      })
   );
 });
