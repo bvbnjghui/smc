@@ -1,20 +1,33 @@
 // smc/sw.js
 
 // ** 修改：更新快取版本號以觸發 Service Worker 更新 **
-const CACHE_NAME = 'smc-analyzer-cache-v3'; 
-// ** 修改：將新的模組檔案加入快取列表 **
+const CACHE_NAME = 'smc-analyzer-cache-v4'; 
+// ** 修改：將新的元件檔案加入快取列表 **
 const URLS_TO_CACHE = [
+  // 核心 Shell
   '/smc/',
   '/smc/index.html',
   '/smc/main.js',
+  '/smc/manifest.json',
+
+  // JavaScript 模組
   '/smc/modules/api.js',
   '/smc/modules/smc-analyzer.js',
   '/smc/modules/chart-controller.js',
   '/smc/modules/backtester.js',
+
+  // HTML 元件
+  '/smc/components/sidebar.html',
+  '/smc/components/header.html',
+  '/smc/components/help-modal.html',
+  '/smc/components/simulation-settings-modal.html',
+  '/smc/components/simulation-results-modal.html',
+  
+  // 第三方函式庫 (CDN)
   'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js',
   'https://cdn.tailwindcss.com',
-  'https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js',
-  'https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js'
+  'https://unpkg.com/alpinejs@3.x.x/dist/module.esm.js',
+  'https://unpkg.com/@alpinejs/collapse@3.x.x/dist/module.esm.js'
 ];
 
 // 安裝 Service Worker
@@ -23,7 +36,7 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('快取已開啟');
+        console.log('快取已開啟，正在快取核心檔案...');
         // 使用 addAll 一次性快取所有核心檔案
         return cache.addAll(URLS_TO_CACHE);
       })
