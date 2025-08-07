@@ -44,6 +44,14 @@ export function setupChart(containerId, onVisibleRangeChanged) {
             }
         },
         timeScale: { borderColor: '#4b5563', rightOffset: 12, timeVisible: true, barSpacing: 8 },
+        // ** 新增：設定所有覆蓋價格座標軸的預設行為 **
+        overlayPriceScales: {
+            // ** 修改：強制覆蓋座標軸（例如成交量）的底部邊界為 0，解決浮空問題 **
+            scaleMargins: {
+                top: 0.8, // 保留 80% 的頂部空間給 K 線圖本身
+                bottom: 0,  // 底部邊界設為 0，讓成交量貼齊底部
+            }
+        }
     });
 
     // ** 新增：監聽圖表可見的 K 棒索引範圍變化 **
@@ -61,9 +69,12 @@ export function setupChart(containerId, onVisibleRangeChanged) {
     });
 
     volumeSeries = chart.addHistogramSeries({
-        color: '#26a69a', priceFormat: { type: 'volume' },
-        priceScaleId: '',
-        scaleMargins: { top: 0.8, bottom: 0 },
+        color: '#26a69a',
+        priceFormat: { type: 'volume' },
+        priceScaleId: '', // 保持使用一個獨立的、不可見的覆蓋座標軸
+        // ** 新增：強制成交量圖的基線從 0 開始 **
+        base: 0,
+        // ** 移除：此處的 scaleMargins 已由上方的 overlayPriceScales 全域設定取代，因此不再需要 **
     });
 
     new ResizeObserver(entries => {

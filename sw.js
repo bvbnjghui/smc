@@ -1,7 +1,7 @@
 // smc/sw.js
 
 // ** 修改：更新快取版本號以觸發 Service Worker 更新 **
-const CACHE_NAME = 'smc-analyzer-cache-v5'; 
+const CACHE_NAME = 'smc-analyzer-cache-v6'; 
 const URLS_TO_CACHE = [
   // 核心 Shell
   '/smc/',
