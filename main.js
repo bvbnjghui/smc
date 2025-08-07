@@ -334,7 +334,6 @@ document.addEventListener('alpine:init', () => {
                                 if (candles[i].close < relevantLow.price) {
                                     let isInvalidated = false;
                                     const protectionHigh = swingHighs.filter(sh => sh.index > relevantLow.index && sh.index < i).pop();
-                                    // ** 修正：新增空值檢查 **
                                     if (protectionHigh) {
                                         for (let j = i + 1; j < candles.length; j++) {
                                             if (candles[j].close > protectionHigh.price) {
@@ -360,7 +359,6 @@ document.addEventListener('alpine:init', () => {
                                 if (candles[i].close > relevantHigh.price) {
                                     let isInvalidated = false;
                                     const protectionLow = swingLows.filter(sl => sl.index > relevantHigh.index && sl.index < i).pop();
-                                     // ** 修正：新增空值檢查 **
                                      if (protectionLow) {
                                         for (let j = i + 1; j < candles.length; j++) {
                                             if (candles[j].close < protectionLow.price) {
@@ -563,6 +561,7 @@ document.addEventListener('alpine:init', () => {
                 }
             },
             
+            // ** 修正：重構回測引擎 **
             runBacktestSimulation() {
                 if (!this.isBacktestMode || this.currentCandles.length === 0) {
                     alert('請先在回測模式下，載入歷史數據。');
@@ -579,11 +578,12 @@ document.addEventListener('alpine:init', () => {
                     const { liquidityGrabs, mss, orderBlocks, fvgs } = analyses;
 
                     let activeTrade = null;
-                    let waitingForMSS = null;
+                    let setup = null; // { state, type, grabCandleIndex, grabHigh, grabLow, grabCount, poi, direction }
 
                     for (let i = 0; i < this.currentCandles.length; i++) {
                         const candle = this.currentCandles[i];
 
+                        // 1. Check for active trade exit
                         if (activeTrade) {
                             let exitPrice = null;
                             if (activeTrade.direction === 'LONG' && candle.high >= activeTrade.takeProfit) exitPrice = activeTrade.takeProfit;
@@ -596,48 +596,84 @@ document.addEventListener('alpine:init', () => {
                                 equity += pnl;
                                 trades.push({ ...activeTrade, exitPrice, pnl });
                                 activeTrade = null;
+                                setup = null;
                             }
                         }
-                        
-                        const mssEvent = mss.find(m => m.marker.time === candle.time);
-                        if (mssEvent && waitingForMSS) {
-                            const direction = waitingForMSS.type === 'SSL' ? 'bullish' : 'bearish';
-                            const poi = this.findNearestPOI(i, direction, orderBlocks, fvgs);
-                            if (poi) {
-                                let riskPercent = this.riskPerTrade;
-                                if (waitingForMSS.grabCount === 2) riskPercent = this.riskMultiGrab2;
-                                if (waitingForMSS.grabCount >= 3) riskPercent = this.riskMultiGrab3plus;
-                                const riskPerTrade = riskPercent / 100;
 
-                                if (direction === 'bullish') {
-                                    const entryPrice = poi.top;
-                                    const stopLoss = poi.bottom;
-                                    const risk = entryPrice - stopLoss;
+                        // If we are in a trade, we don't process setups
+                        if (activeTrade) continue;
+
+                        // 2. Manage current setup
+                        if (setup) {
+                            // State: WAITING_FOR_ENTRY
+                            if (setup.state === 'WAITING_FOR_ENTRY') {
+                                // Check for entry first
+                                let entryPrice = null;
+                                if (setup.direction === 'bullish' && candle.low <= setup.poi.top) {
+                                    entryPrice = setup.poi.top;
+                                } else if (setup.direction === 'bearish' && candle.high >= setup.poi.bottom) {
+                                    entryPrice = setup.poi.bottom;
+                                }
+
+                                if (entryPrice) {
+                                    let riskPercent = this.riskPerTrade;
+                                    if (setup.grabCount === 2) riskPercent = this.riskMultiGrab2;
+                                    if (setup.grabCount >= 3) riskPercent = this.riskMultiGrab3plus;
+                                    const riskPerTrade = riskPercent / 100;
+                                    
+                                    const stopLoss = setup.direction === 'bullish' ? setup.poi.bottom : setup.poi.top;
+                                    const risk = Math.abs(entryPrice - stopLoss);
+                                    
                                     if (risk > 0) {
-                                        const takeProfit = entryPrice + risk * rrRatio;
+                                        const takeProfit = setup.direction === 'bullish' ? entryPrice + risk * rrRatio : entryPrice - risk * rrRatio;
                                         const size = (equity * riskPerTrade) / risk;
-                                        activeTrade = { direction: 'LONG', entryTime: candle.time, entryPrice, stopLoss, takeProfit, size };
+                                        activeTrade = { direction: setup.direction.toUpperCase(), entryTime: candle.time, entryPrice, stopLoss, takeProfit, size };
+                                        setup = null; // Trade is active, reset setup
                                     }
-                                } else { // bearish
-                                    const entryPrice = poi.bottom;
-                                    const stopLoss = poi.top;
-                                    const risk = stopLoss - entryPrice;
-                                    if (risk > 0) {
-                                        const takeProfit = entryPrice - risk * rrRatio;
-                                        const size = (equity * riskPerTrade) / risk;
-                                        activeTrade = { direction: 'SHORT', entryTime: candle.time, entryPrice, stopLoss, takeProfit, size };
+                                } else {
+                                    // ** 修正：正確的失效邏輯 **
+                                    if ((setup.direction === 'bullish' && candle.low < setup.protectionPoint) ||
+                                        (setup.direction === 'bearish' && candle.high > setup.protectionPoint)) {
+                                        setup = null;
                                     }
                                 }
                             }
-                            waitingForMSS = null;
+                            // State: SEEN_GRAB
+                            else if (setup.state === 'SEEN_GRAB') {
+                                // Check for invalidation first
+                                if ((setup.type === 'BSL' && candle.high > setup.protectionPoint) ||
+                                    (setup.type === 'SSL' && candle.low < setup.protectionPoint)) {
+                                    setup = null;
+                                } else {
+                                    // Check for MSS confirmation
+                                    const mssEvent = mss.find(m => m.marker.time === candle.time);
+                                    if (mssEvent) {
+                                        const direction = setup.type === 'SSL' ? 'bullish' : 'bearish';
+                                        const poi = this.findNearestPOI(i, direction, orderBlocks, fvgs);
+                                        if (poi) {
+                                            setup.state = 'WAITING_FOR_ENTRY';
+                                            setup.poi = poi;
+                                            setup.direction = direction;
+                                        } else {
+                                            setup = null;
+                                        }
+                                    }
+                                }
+                            }
                         }
 
-                        if (activeTrade) continue;
-
-                        const grabsOnThisCandle = liquidityGrabs[candle.time];
-                        if (grabsOnThisCandle && grabsOnThisCandle.length > 0) {
-                            const grabType = grabsOnThisCandle[0].text;
-                            waitingForMSS = { type: grabType, grabCount: grabsOnThisCandle.length };
+                        // 3. Look for a new setup if none exists
+                        if (!setup) {
+                            const grabsOnThisCandle = liquidityGrabs[candle.time];
+                            if (grabsOnThisCandle && grabsOnThisCandle.length > 0) {
+                                const grabType = grabsOnThisCandle[0].text;
+                                setup = { 
+                                    state: 'SEEN_GRAB', 
+                                    type: grabType, 
+                                    protectionPoint: grabType === 'BSL' ? candle.high : candle.low,
+                                    grabCount: grabsOnThisCandle.length
+                                };
+                            }
                         }
                     }
 
