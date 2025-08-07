@@ -23,6 +23,8 @@ SMC 策略分析儀
 
 模組化邏輯: 將核心商業邏輯拆分為獨立的 JavaScript 模組，存放於 modules/ 資料夾中。
 
+固定式頁首: 採用固定式頁首設計，方便使用者在滾動頁面時隨時操作。
+
 動態範圍分析: 提供「僅分析可見範圍」模式，啟用後所有指標會根據使用者平移或縮放的圖表視野即時更新。
 
 使用 TradingView Lightweight Charts 繪製 K 線圖表。
@@ -95,7 +97,7 @@ components/ (HTML 元件)
 
 sidebar.html: 側邊欄設定介面。
 
-header.html: 頁面頂部標頭，包含「範圍分析模式」開關。
+header.html: 頁面頂部標頭。
 
 help-modal.html: 「如何解讀圖表」的彈出視窗。
 

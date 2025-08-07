@@ -28,24 +28,30 @@
                             <div class="text-2xl font-bold" x-text="simulationResults.totalTrades"></div>
                         </div>
                     </div>
-                    <div class="w-full text-left text-sm">
-                        <div class="bg-gray-700 grid grid-cols-5 gap-2 p-2 font-bold rounded-t-lg">
-                            <div>方向</div>
-                            <div>進場時間</div>
-                            <div>進場價格</div>
-                            <div>出場價格</div>
-                            <div>盈虧 ($)</div>
-                        </div>
-                        <div class="max-h-64 overflow-y-auto">
-                            <template x-for="(trade, index) in simulationResults.trades" :key="index">
-                                <div class="grid grid-cols-5 gap-2 p-2 border-b border-gray-700">
-                                    <div :class="trade.direction === 'LONG' ? 'text-green-400' : 'text-red-400'" x-text="trade.direction"></div>
-                                    <div x-text="new Date(trade.entryTime * 1000).toLocaleString()"></div>
-                                    <div x-text="trade.entryPrice.toFixed(4)"></div>
-                                    <div x-text="trade.exitPrice.toFixed(4)"></div>
-                                    <div :class="trade.pnl > 0 ? 'text-green-400' : 'text-red-400'" x-text="trade.pnl.toFixed(2)"></div>
-                                </div>
-                            </template>
+                    
+                    <!-- ** 修改：加入可水平捲動的容器 ** -->
+                    <div class="w-full overflow-x-auto">
+                        <div class="min-w-[700px] text-left text-sm">
+                            <!-- 表格標頭 -->
+                            <div class="bg-gray-700 grid grid-cols-5 gap-2 p-2 font-bold rounded-t-lg">
+                                <div>方向</div>
+                                <div>進場時間</div>
+                                <div>進場價格</div>
+                                <div>出場價格</div>
+                                <div>盈虧 ($)</div>
+                            </div>
+                            <!-- 表格內容 -->
+                            <div class="max-h-64 overflow-y-auto">
+                                <template x-for="(trade, index) in simulationResults.trades" :key="index">
+                                    <div class="grid grid-cols-5 gap-2 p-2 border-b border-gray-700">
+                                        <div :class="trade.direction === 'LONG' ? 'text-green-400' : 'text-red-400'" x-text="trade.direction"></div>
+                                        <div x-text="new Date(trade.entryTime * 1000).toLocaleString()"></div>
+                                        <div x-text="trade.entryPrice.toFixed(4)"></div>
+                                        <div x-text="trade.exitPrice.toFixed(4)"></div>
+                                        <div :class="trade.pnl > 0 ? 'text-green-400' : 'text-red-400'" x-text="trade.pnl.toFixed(2)"></div>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
                     </div>
                 </div>

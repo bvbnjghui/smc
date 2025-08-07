@@ -55,7 +55,8 @@
         ></div>
 
         <!-- 主內容區 -->
-        <main class="p-4 md:p-8 transition-all duration-300" :class="{'md:ml-64': isSidebarOpen}">
+        <!-- ** 修改：加入 pt-24 為固定的 header 騰出空間 ** -->
+        <main class="p-4 md:p-8 pt-24 transition-all duration-300" :class="{'md:ml-64': isSidebarOpen}">
             <div id="header-container"></div>
             
             <div id="chart" class="bg-gray-800 rounded-2xl shadow-lg"></div>
