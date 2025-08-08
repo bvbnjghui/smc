@@ -15,24 +15,6 @@ SMC 策略分析儀
 
 部署: 部署為靜態網站，例如 GitHub Pages。
 
-核心功能:
-
-元件化 UI: 將主要介面區塊（側邊欄、Modal 等）拆分為獨立的 HTML 檔案，存放於 components/ 資料夾中。
-
-動態載入: 由 main.js 負責在應用程式啟動時，非同步載入所有 HTML 元件並注入主頁面。
-
-模組化邏輯: 將核心商業邏輯拆分為獨立的 JavaScript 模組，存放於 modules/ 資料夾中。
-
-固定式頁首: 採用固定式頁首設計，方便使用者在滾動頁面時隨時操作。
-
-動態範圍分析: 提供「僅分析可見範圍」模式，啟用後所有指標會根據使用者平移或縮放的圖表視野即時更新。
-
-使用 TradingView Lightweight Charts 繪製 K 線圖表。
-
-透過 Alpine.js 處理所有使用者互動與狀態管理。
-
-透過 Service Worker (sw.js) 實現 PWA 的離線快取功能。
-
 後端 (Backend)
 技術棧: Node.js, Express.js
 
@@ -40,11 +22,34 @@ SMC 策略分析儀
 
 部署: 使用 Docker 容器化，並部署在雲端服務上 (例如 Google Cloud Run)。
 
-核心功能:
+核心功能
+元件化 UI: 將主要介面區塊（側邊欄、Modal 等）拆分為獨立的 HTML 檔案，存放於 components/ 資料夾中。
 
-作為一個輕量級的 API 代理 (Proxy)，負責從幣安 (Binance) 的公開 API 獲取 K 線數據。
+動態載入: 由 main.js 負責在應用程式啟動時，非同步載入所有 HTML 元件並注入主頁面。
 
-處理 CORS (跨來源資源共用) 問題。
+模組化邏輯: 將核心商業邏輯拆分為獨立的 JavaScript 模組，存放於 modules/ 資料夾中。
+
+進階 SMC 分析:
+
+自動標示流動性掠奪 (BSL/SSL)、市場結構轉變 (MSS)。
+
+趨勢轉變 (CHoCH): 標示出更早期的趨勢反轉訊號。
+
+突破塊 (Breaker Block): 標示出被突破後，角色由支撐轉為壓力的訂單塊。
+
+策略回測模擬器:
+
+可自訂回測日期、初始資金、風險參數等。
+
+整合 EMA 趨勢過濾器，可選擇只執行順勢交易以提高勝率。
+
+使用者體驗優化:
+
+自訂常用交易對: 讓使用者可以在側邊欄中，自行新增或刪除常用的交易對列表，並自動儲存。
+
+初始載入優化: 使用 x-cloak 避免頁面載入初期的元件閃爍問題。
+
+PWA 支援: 透過 Service Worker (sw.js) 實現 PWA 的離線快取功能。
 
 數據與執行流程
 瀏覽器載入 index.html，它只是一個基本的頁面骨架。
@@ -65,62 +70,7 @@ api.js 模組向後端 server.js 發送請求。
 
 前端接收到數據後，由 smc-analyzer.js 進行分析，再由 chart-controller.js 將結果繪製到圖表上。
 
-檔案功能說明
-index.html
-功能: 應用程式的骨架 (Skeleton)。
-
-職責:
-
-提供最基本的 HTML 結構 (<head>, <body>)。
-
-包含各個 UI 元件的「佔位符」容器 (<div id="sidebar-container"> 等)。
-
-引入核心 CSS、圖表庫，並將 main.js 作為唯一的腳本入口。
-
-main.js
-功能: 應用程式的總指揮 (Orchestrator)。
-
-職責:
-
-元件載入器: 在程式啟動初期，負責載入所有 components/*.html 檔案。
-
-啟動器: 載入元件後，手動初始化並啟動 Alpine.js 框架。
-
-狀態管理器: 定義全域的 Alpine.js app 元件，管理所有 UI 狀態與互動邏輯。
-
-協調者: 匯入所有 modules/ 中的模組，並在適當時機呼叫它們，將各功能串接起來。
-
-components/ (HTML 元件)
-功能: 存放可重複使用的獨立 UI 區塊。
-
-檔案:
-
-sidebar.html: 側邊欄設定介面。
-
-header.html: 頁面頂部標頭。
-
-help-modal.html: 「如何解讀圖表」的彈出視窗。
-
-simulation-settings-modal.html: 策略回測的參數設定視窗。
-
-simulation-results-modal.html: 顯示回測結果的彈出視窗。
-
-modules/ (JavaScript 核心模組)
-api.js: 專門處理所有與後端 API 的通訊。
-
-smc-analyzer.js: 核心 SMC 分析引擎，為純函式，不依賴外部狀態。
-
-chart-controller.js: 圖表控制器，封裝所有與 Lightweight Charts 相關的操作，並監聽圖表視野變化事件。
-
-backtester.js: 獨立的回測模擬引擎。
-
 未來開發建議
-增加更多 SMC 概念:
-
-Change of Character (CHoCH): 標示出更早期的趨勢反轉訊號。
-
-Breaker Block: 標示出被突破後，角色由支撐轉為壓力的訂單塊。
-
 優化回測引擎:
 
 多重止盈點: 允許設定多個止盈目標 (TP1, TP2)。
@@ -133,4 +83,8 @@ Breaker Block: 標示出被突破後，角色由支撐轉為壓力的訂單塊�
 
 圖表快照: 新增一個按鈕，讓使用者可以將當前的圖表與分析結果匯出為圖片。
 
-自訂常用交易對: 讓使用者可以在側邊欄中，自行新增或刪除常用的交易對列表。
+主題切換: 提供淺色/深色模式的切換功能。
+
+數據分析擴展:
+
+多時間週期分析 (Multi-Timeframe Analysis): 允許在高時間週期的圖表上疊加低時間週期的關鍵結構，提供更全面的市場視角。
