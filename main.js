@@ -11,7 +11,6 @@ import anchor from 'https://unpkg.com/@alpinejs/anchor@3.x.x/dist/module.esm.js'
 
 import { fetchKlines } from './modules/api.js';
 import { setupChart, updateChartData, fitChart, redrawAllAnalyses } from './modules/chart-controller.js';
-// ** 修改：同時匯入 calculateEMA 函式 **
 import { analyzeAll, calculateEMA } from './modules/smc-analyzer.js';
 import { runBacktestSimulation } from './modules/backtester.js';
 
@@ -49,6 +48,8 @@ const appComponent = () => {
     const loadInitialSettings = () => {
         const defaults = {
             symbol: 'BTCUSDT',
+            // ** 修改：常用交易對列表預設值 **
+            commonSymbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
             interval: '15m',
             showLiquidity: true,
             showMSS: true,
@@ -70,18 +71,24 @@ const appComponent = () => {
             enableTrendFilter: false,
             emaPeriod: 50,
         };
-        const commonSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
 
         try {
             const savedSettings = localStorage.getItem('smcAnalyzerSettings');
             const settings = savedSettings ? { ...defaults, ...JSON.parse(savedSettings) } : defaults;
-            const savedSymbol = (settings.symbol || defaults.symbol).toUpperCase();
-            let selectedPreset = commonSymbols.includes(savedSymbol) ? savedSymbol : 'CUSTOM';
-            let customSymbol = commonSymbols.includes(savedSymbol) ? '' : savedSymbol;
-            return { ...settings, selectedPreset, customSymbol };
+            
+            // ** 新增：確保 commonSymbols 是一個陣列 **
+            if (!Array.isArray(settings.commonSymbols) || settings.commonSymbols.length === 0) {
+                settings.commonSymbols = defaults.commonSymbols;
+            }
+            // ** 新增：確保當前 symbol 存在於列表中 **
+            if (!settings.commonSymbols.includes(settings.symbol)) {
+                settings.symbol = settings.commonSymbols[0] || defaults.symbol;
+            }
+
+            return settings;
         } catch (e) {
             console.error('從 localStorage 載入設定失敗，將使用預設值。', e);
-            return { ...defaults, selectedPreset: defaults.symbol, customSymbol: '' };
+            return defaults;
         }
     };
 
@@ -89,9 +96,11 @@ const appComponent = () => {
 
     return {
         // --- 狀態 (State) ---
-        commonSymbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
-        selectedPreset: initialSettings.selectedPreset,
-        customSymbol: initialSettings.customSymbol,
+        // ** 修改：狀態名稱與邏輯 **
+        symbol: initialSettings.symbol,
+        commonSymbols: initialSettings.commonSymbols,
+        newCustomSymbol: '', // 用於新增交易對的輸入框
+        
         interval: initialSettings.interval,
         intervals: [
             { value: '1m', label: '1 分鐘' }, { value: '5m', label: '5 分鐘' },
@@ -134,17 +143,13 @@ const appComponent = () => {
         isSimulationModalOpen: false,
         isSimulationSettingsModalOpen: false,
 
-        get symbol() {
-            return this.selectedPreset === 'CUSTOM' ? this.customSymbol.toUpperCase() : this.selectedPreset;
-        },
-
         init() {
             console.log('Alpine component initialized.');
             setupChart('chart', this.onVisibleRangeChanged.bind(this));
             this.fetchData();
 
             const settingsToWatch = [
-                'symbol', 'interval', 'showLiquidity', 'showMSS', 'showCHoCH', 'showOrderBlocks', 'showBreakerBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
+                'symbol', 'commonSymbols', 'interval', 'showLiquidity', 'showMSS', 'showCHoCH', 'showOrderBlocks', 'showBreakerBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
                 'isBacktestMode', 'backtestStartDate', 'backtestEndDate', 'investmentAmount',
                 'riskPerTrade', 'riskMultiGrab2', 'riskMultiGrab3plus', 'rrRatio', 'setupExpirationCandles',
                 'enableTrendFilter', 'emaPeriod'
@@ -164,7 +169,9 @@ const appComponent = () => {
 
         saveSettings() {
             const settings = {
-                symbol: this.symbol, interval: this.interval, showLiquidity: this.showLiquidity,
+                symbol: this.symbol,
+                commonSymbols: this.commonSymbols,
+                interval: this.interval, showLiquidity: this.showLiquidity,
                 showMSS: this.showMSS, showCHoCH: this.showCHoCH, showOrderBlocks: this.showOrderBlocks,
                 showBreakerBlocks: this.showBreakerBlocks, showFVGs: this.showFVGs,
                 showMitigated: this.showMitigated, analyzeVisibleRangeOnly: this.analyzeVisibleRangeOnly,
@@ -178,8 +185,32 @@ const appComponent = () => {
             localStorage.setItem('smcAnalyzerSettings', JSON.stringify(settings));
         },
 
+        // ** 新增：選擇交易對的函式 **
+        selectSymbol(selected) {
+            this.symbol = selected;
+            this.stopAutoUpdate();
+        },
+
+        // ** 新增：新增交易對的函式 **
+        addSymbol() {
+            const newSymbol = this.newCustomSymbol.trim().toUpperCase();
+            if (newSymbol && !this.commonSymbols.includes(newSymbol)) {
+                this.commonSymbols.push(newSymbol);
+                this.newCustomSymbol = ''; // 清空輸入框
+            }
+        },
+
+        // ** 新增：移除交易對的函式 **
+        removeSymbol(symbolToRemove) {
+            this.commonSymbols = this.commonSymbols.filter(s => s !== symbolToRemove);
+            // 如果刪除的是當前選中的交易對，則自動選擇列表中的第一個
+            if (this.symbol === symbolToRemove) {
+                this.symbol = this.commonSymbols[0] || '';
+            }
+        },
+
         async fetchData() {
-            if (this.isLoading) return;
+            if (this.isLoading || !this.symbol) return;
             this.stopAutoUpdate();
             this.isLoading = true;
             this.error = '';
@@ -210,7 +241,6 @@ const appComponent = () => {
         redrawChartAnalyses() {
             if (this.currentCandles.length === 0) return;
 
-            // 1. 決定用於標準 SMC 分析的 K 棒範圍 (遵守「僅分析可見範圍」設定)
             let candlesForStandardAnalysis = this.currentCandles;
             if (this.analyzeVisibleRangeOnly && this.visibleRange) {
                 const from = Math.floor(this.visibleRange.from);
@@ -218,15 +248,12 @@ const appComponent = () => {
                 candlesForStandardAnalysis = this.currentCandles.slice(from, to);
             }
             
-            // 2. 在可能被切片的數據上執行標準分析 (此處不計算 EMA)
             const analyses = analyzeAll(candlesForStandardAnalysis, { enableTrendFilter: false });
 
-            // 3. 如果啟用趨勢過濾器，則「永遠」在完整的數據集上計算 EMA 以確保準確性
             if (this.enableTrendFilter) {
                 analyses.ema = calculateEMA(this.currentCandles, this.emaPeriod);
             }
             
-            // 4. 準備顯示設定並重繪圖表
             const displaySettings = {
                 showLiquidity: this.showLiquidity,
                 showMSS: this.showMSS,

@@ -3,22 +3,35 @@
     class="fixed top-0 left-0 h-full w-64 bg-gray-800 shadow-lg z-50 transform transition-transform duration-300 ease-in-out"
     :class="{ 'translate-x-0': isSidebarOpen, '-translate-x-full': !isSidebarOpen }"
 >
-    <div class="p-4 flex flex-col h-full">
-        <h2 class="text-2xl font-bold text-teal-400 mb-6 flex-shrink-0">設定</h2>
-        <div class="space-y-6 flex-grow overflow-y-auto pr-2 sidebar-content">
-            <!-- 交易對設定 -->
-            <div class="space-y-2">
-                <label for="symbol-preset" class="text-gray-400">交易對:</label>
-                <select id="symbol-preset" x-model="selectedPreset" @change="stopAutoUpdate()" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase">
-                    <template x-for="preset in commonSymbols">
-                        <option :value="preset" x-text="preset" :selected="preset === selectedPreset"></option>
+    <div class="px-2 py-4 flex flex-col h-full">
+        <h2 class="text-2xl font-bold text-teal-400 mb-6 flex-shrink-0 px-2">設定</h2>
+        <div class="space-y-6 flex-grow overflow-y-auto px-2 sidebar-content">
+            
+            <!-- 自訂常用交易對列表 -->
+            <div class="space-y-3">
+                <label class="text-gray-400">常用交易對:</label>
+                <!-- ** 修改：將輸入框和按鈕改為上下排列以解決排版問題 ** -->
+                <div class="space-y-2">
+                    <input type="text" x-model="newCustomSymbol" @keydown.enter="addSymbol()" placeholder="例如：ADAUSDT" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase placeholder-gray-500">
+                    <button @click="addSymbol()" class="w-full bg-teal-600 text-white font-semibold py-2 rounded-lg hover:bg-teal-700 transition duration-300">
+                        新增
+                    </button>
+                </div>
+                <!-- 交易對列表 -->
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    <template x-for="sym in commonSymbols" :key="sym">
+                        <div 
+                            @click="selectSymbol(sym)"
+                            class="flex items-center justify-between p-2 rounded-lg cursor-pointer transition duration-200"
+                            :class="{ 'bg-teal-500 text-white': symbol === sym, 'hover:bg-gray-700': symbol !== sym }"
+                        >
+                            <span class="font-medium" x-text="sym"></span>
+                            <button @click.stop="removeSymbol(sym)" class="p-1 rounded-full hover:bg-red-500/50 text-gray-400 hover:text-white">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
                     </template>
-                    <option value="CUSTOM" :selected="'CUSTOM' === selectedPreset">其他...</option>
-                </select>
-            </div>
-            <div x-show="selectedPreset === 'CUSTOM'" x-collapse class="space-y-2">
-                <label for="custom-symbol" class="text-gray-400">自訂交易對:</label>
-                <input type="text" id="custom-symbol" x-model.debounce.500ms="customSymbol" @change="stopAutoUpdate()" placeholder="例如：BNBUSDT" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase placeholder-gray-500">
+                </div>
             </div>
 
             <!-- 週期設定 -->
@@ -32,11 +45,13 @@
             </div>
             
             <!-- 載入按鈕 -->
-            <button @click="fetchData(); isSidebarOpen = false" :disabled="isLoading" class="w-full bg-teal-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-teal-700 transition duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                <span x-show="!isLoading && !isBacktestMode">載入數據</span>
-                <span x-show="!isLoading && isBacktestMode">載入回測數據</span>
-                <span x-show="isLoading">載入中...</span>
-            </button>
+            <div>
+                <button @click="fetchData(); isSidebarOpen = false" :disabled="isLoading" class="w-full bg-teal-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-teal-700 transition duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span x-show="!isLoading && !isBacktestMode">載入數據</span>
+                    <span x-show="!isLoading && isBacktestMode">載入回測數據</span>
+                    <span x-show="isLoading">載入中...</span>
+                </button>
+            </div>
             
             <!-- 回測模式設定 -->
             <div class="space-y-4 pt-4 border-t border-gray-700">
@@ -128,7 +143,7 @@
                 </div>
             </div>
 
-            <!-- ** 新增：趨勢過濾器設定區塊 ** -->
+            <!-- 趨勢過濾器設定區塊 -->
             <div class="space-y-4 pt-4 border-t border-gray-700">
                 <h3 class="text-lg font-semibold text-gray-300">趨勢過濾器 (EMA)</h3>
                 <div class="flex items-center justify-between text-gray-400">

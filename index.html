@@ -36,11 +36,16 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+        /* ** 新增：x-cloak 樣式，用於隱藏尚未初始化的 Alpine 元件 ** */
+        [x-cloak] { 
+            display: none !important; 
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-200">
 
-    <div class="max-w-7xl mx-auto" x-data="app">
+    <!-- ** 修改：在主容器上加入 x-cloak ** -->
+    <div class="max-w-7xl mx-auto" x-data="app" x-cloak>
         <!-- 元件佔位符 -->
         <div id="sidebar-container"></div>
         <div id="modals-container"></div>
@@ -55,7 +60,6 @@
         ></div>
 
         <!-- 主內容區 -->
-        <!-- ** 修改：加入 pt-24 為固定的 header 騰出空間 ** -->
         <main class="p-4 md:p-8 pt-24 transition-all duration-300" :class="{'md:ml-64': isSidebarOpen}">
             <div id="header-container"></div>
             
