@@ -7,6 +7,8 @@
 
 import Alpine from 'https://unpkg.com/alpinejs@3.x.x/dist/module.esm.js';
 import collapse from 'https://unpkg.com/@alpinejs/collapse@3.x.x/dist/module.esm.js';
+// ** 新增：引入 anchor 插件 **
+import anchor from 'https://unpkg.com/@alpinejs/anchor@3.x.x/dist/module.esm.js';
 
 import { fetchKlines } from './modules/api.js';
 import { setupChart, updateChartData, fitChart, redrawAllAnalyses } from './modules/chart-controller.js';
@@ -50,10 +52,12 @@ const appComponent = () => {
             interval: '15m',
             showLiquidity: true,
             showMSS: true,
+            showCHoCH: true,
             showOrderBlocks: true,
+            showBreakerBlocks: true,
             showFVGs: true,
             showMitigated: false,
-            analyzeVisibleRangeOnly: false, // ** 新增：範圍分析模式 **
+            analyzeVisibleRangeOnly: false,
             isBacktestMode: false,
             backtestStartDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
             backtestEndDate: new Date().toISOString().split('T')[0],
@@ -103,11 +107,13 @@ const appComponent = () => {
         // --- 圖表顯示設定 ---
         showLiquidity: initialSettings.showLiquidity,
         showMSS: initialSettings.showMSS,
+        showCHoCH: initialSettings.showCHoCH,
         showOrderBlocks: initialSettings.showOrderBlocks,
+        showBreakerBlocks: initialSettings.showBreakerBlocks,
         showFVGs: initialSettings.showFVGs,
         showMitigated: initialSettings.showMitigated,
-        analyzeVisibleRangeOnly: initialSettings.analyzeVisibleRangeOnly, // ** 新增狀態 **
-        visibleRange: null, // ** 新增：儲存圖表可見範圍的索引 **
+        analyzeVisibleRangeOnly: initialSettings.analyzeVisibleRangeOnly,
+        visibleRange: null,
 
         // --- 回測相關狀態 ---
         isBacktestMode: initialSettings.isBacktestMode,
@@ -130,12 +136,11 @@ const appComponent = () => {
 
         init() {
             console.log('Alpine component initialized.');
-            // ** 修改：將 onVisibleRangeChanged 作為回呼函式傳遞 **
             setupChart('chart', this.onVisibleRangeChanged.bind(this));
             this.fetchData();
 
             const settingsToWatch = [
-                'symbol', 'interval', 'showLiquidity', 'showMSS', 'showOrderBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
+                'symbol', 'interval', 'showLiquidity', 'showMSS', 'showCHoCH', 'showOrderBlocks', 'showBreakerBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
                 'isBacktestMode', 'backtestStartDate', 'backtestEndDate', 'investmentAmount',
                 'riskPerTrade', 'riskMultiGrab2', 'riskMultiGrab3plus', 'rrRatio', 'setupExpirationCandles'
             ];
@@ -155,7 +160,8 @@ const appComponent = () => {
         saveSettings() {
             const settings = {
                 symbol: this.symbol, interval: this.interval, showLiquidity: this.showLiquidity,
-                showMSS: this.showMSS, showOrderBlocks: this.showOrderBlocks, showFVGs: this.showFVGs,
+                showMSS: this.showMSS, showCHoCH: this.showCHoCH, showOrderBlocks: this.showOrderBlocks,
+                showBreakerBlocks: this.showBreakerBlocks, showFVGs: this.showFVGs,
                 showMitigated: this.showMitigated, analyzeVisibleRangeOnly: this.analyzeVisibleRangeOnly,
                 isBacktestMode: this.isBacktestMode, backtestStartDate: this.backtestStartDate,
                 backtestEndDate: this.backtestEndDate, investmentAmount: this.investmentAmount,
@@ -188,10 +194,8 @@ const appComponent = () => {
             }
         },
 
-        // ** 新增：處理圖表視野變化的回呼函式 **
         onVisibleRangeChanged(newRange) {
             this.visibleRange = newRange;
-            // 如果啟用了範圍分析模式，則在每次視野變化時重新繪製
             if (this.analyzeVisibleRangeOnly) {
                 this.redrawChartAnalyses();
             }
@@ -202,7 +206,6 @@ const appComponent = () => {
 
             let candlesToAnalyze = this.currentCandles;
 
-            // ** 新增：如果啟用範圍分析，則只分析可見範圍內的 K 棒 **
             if (this.analyzeVisibleRangeOnly && this.visibleRange) {
                 const from = Math.floor(this.visibleRange.from);
                 const to = Math.ceil(this.visibleRange.to);
@@ -212,7 +215,10 @@ const appComponent = () => {
             const analyses = analyzeAll(candlesToAnalyze);
             const displaySettings = {
                 showLiquidity: this.showLiquidity, showMSS: this.showMSS,
-                showOrderBlocks: this.showOrderBlocks, showFVGs: this.showFVGs,
+                showCHoCH: this.showCHoCH,
+                showOrderBlocks: this.showOrderBlocks,
+                showBreakerBlocks: this.showBreakerBlocks,
+                showFVGs: this.showFVGs,
                 showMitigated: this.showMitigated,
             };
             redrawAllAnalyses(analyses, displaySettings);
@@ -275,6 +281,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadAllComponents();
     console.log('所有元件已載入。');
 
+    // ** 修改：註冊 anchor 和 collapse 插件 **
+    Alpine.plugin(anchor);
     Alpine.plugin(collapse);
     Alpine.data('app', appComponent);
     

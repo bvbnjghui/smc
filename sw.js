@@ -1,7 +1,7 @@
 // smc/sw.js
 
 // ** 修改：更新快取版本號以觸發 Service Worker 更新 **
-const CACHE_NAME = 'smc-analyzer-cache-v6'; 
+const CACHE_NAME = 'smc-analyzer-cache-v7'; 
 const URLS_TO_CACHE = [
   // 核心 Shell
   '/smc/',
@@ -26,7 +26,9 @@ const URLS_TO_CACHE = [
   'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js',
   'https://cdn.tailwindcss.com',
   'https://unpkg.com/alpinejs@3.x.x/dist/module.esm.js',
-  'https://unpkg.com/@alpinejs/collapse@3.x.x/dist/module.esm.js'
+  'https://unpkg.com/@alpinejs/collapse@3.x.x/dist/module.esm.js',
+  // ** 新增：快取 anchor 插件 **
+  'https://unpkg.com/@alpinejs/anchor@3.x.x/dist/module.esm.js'
 ];
 
 // 安裝 Service Worker
@@ -36,10 +38,18 @@ self.addEventListener('install', event => {
     caches.open(CACHE_NAME)
       .then(cache => {
         console.log('快取已開啟，正在快取核心檔案...');
-        return cache.addAll(URLS_TO_CACHE);
+        // ** 修改：使用 { cache: 'reload' } 確保每次都從網路獲取最新的 CDN 檔案 **
+        const cachePromises = URLS_TO_CACHE.map(urlToCache => {
+            const request = new Request(urlToCache, { cache: 'reload' });
+            return fetch(request).then(response => {
+                if (response.status === 200) {
+                    return cache.put(urlToCache, response);
+                }
+            });
+        });
+        return Promise.all(cachePromises);
       })
       .then(() => {
-        // ** 新增：強制新的 Service Worker 立即啟用 **
         console.log('所有核心檔案快取完畢，強制啟用 Service Worker。');
         return self.skipWaiting();
       })
@@ -61,7 +71,6 @@ self.addEventListener('activate', event => {
         })
       );
     }).then(() => {
-      // ** 新增：讓 Service Worker 立即接管所有分頁 **
       console.log('舊快取已清除，Service Worker 已接管控制權。');
       return self.clients.claim();
     })
@@ -70,11 +79,13 @@ self.addEventListener('activate', event => {
 
 // 攔截網路請求
 self.addEventListener('fetch', event => {
+  // 對於 API 請求，總是從網路獲取
   if (event.request.url.includes('/api/')) {
     event.respondWith(fetch(event.request));
     return;
   }
 
+  // 對於其他請求，採用「快取優先，網路備用」策略
   event.respondWith(
     caches.match(event.request)
       .then(response => {
@@ -83,9 +94,11 @@ self.addEventListener('fetch', event => {
         }
         return fetch(event.request).then(
           networkResponse => {
+            // 如果網路請求失敗，或不是 200 OK，則直接返回
             if (!networkResponse || networkResponse.status !== 200) {
               return networkResponse;
             }
+            // 複製一份回應，一份給瀏覽器，一份放入快取
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME)
               .then(cache => {

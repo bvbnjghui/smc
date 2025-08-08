@@ -44,20 +44,16 @@ export function setupChart(containerId, onVisibleRangeChanged) {
             }
         },
         timeScale: { borderColor: '#4b5563', rightOffset: 12, timeVisible: true, barSpacing: 8 },
-        // ** 新增：設定所有覆蓋價格座標軸的預設行為 **
         overlayPriceScales: {
-            // ** 修改：強制覆蓋座標軸（例如成交量）的底部邊界為 0，解決浮空問題 **
             scaleMargins: {
-                top: 0.8, // 保留 80% 的頂部空間給 K 線圖本身
-                bottom: 0,  // 底部邊界設為 0，讓成交量貼齊底部
+                top: 0.8,
+                bottom: 0,
             }
         }
     });
 
-    // ** 新增：監聽圖表可見的 K 棒索引範圍變化 **
     chart.timeScale().subscribeVisibleLogicalRangeChange(logicalRange => {
         if (onVisibleRangeChanged && logicalRange) {
-            // 將範圍傳遞給 main.js 處理
             onVisibleRangeChanged(logicalRange);
         }
     });
@@ -71,10 +67,8 @@ export function setupChart(containerId, onVisibleRangeChanged) {
     volumeSeries = chart.addHistogramSeries({
         color: '#26a69a',
         priceFormat: { type: 'volume' },
-        priceScaleId: '', // 保持使用一個獨立的、不可見的覆蓋座標軸
-        // ** 新增：強制成交量圖的基線從 0 開始 **
+        priceScaleId: '',
         base: 0,
-        // ** 移除：此處的 scaleMargins 已由上方的 overlayPriceScales 全域設定取代，因此不再需要 **
     });
 
     new ResizeObserver(entries => {
@@ -125,16 +119,22 @@ export function redrawAllAnalyses(analyses, settings) {
 
     clearDrawings();
 
-    const { showLiquidity, showMSS, showOrderBlocks, showFVGs, showMitigated } = settings;
+    const { showLiquidity, showMSS, showCHoCH, showOrderBlocks, showBreakerBlocks, showFVGs, showMitigated } = settings;
 
     const fvgsToDraw = showMitigated ? analyses.fvgs : analyses.fvgs.filter(fvg => !fvg.isMitigated);
     const orderBlocksToDraw = showMitigated ? analyses.orderBlocks : analyses.orderBlocks.filter(ob => !ob.isMitigated);
+    // ** 新增：從分析結果中取得 Breaker Blocks **
+    const breakerBlocksToDraw = showMitigated ? analyses.breakerBlocks : analyses.breakerBlocks.filter(bb => !bb.isMitigated);
 
     if (showFVGs && fvgsToDraw) {
         fvgsToDraw.forEach(fvg => drawZone(fvg.top, fvg.bottom, fvg.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', fvg.type === 'bullish' ? '看漲 FVG' : '看跌 FVG', LightweightCharts.LineStyle.Dashed));
     }
     if (showOrderBlocks && orderBlocksToDraw) {
         orderBlocksToDraw.forEach(ob => drawZone(ob.top, ob.bottom, ob.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', ob.type === 'bullish' ? '看漲 OB' : '看跌 OB', LightweightCharts.LineStyle.Solid, 2));
+    }
+    // ** 新增：繪製 Breaker Blocks **
+    if (showBreakerBlocks && breakerBlocksToDraw) {
+        breakerBlocksToDraw.forEach(bb => drawZone(bb.top, bb.bottom, bb.type === 'bullish' ? 'rgba(139, 92, 246, 0.8)' : 'rgba(139, 92, 246, 0.8)', bb.type === 'bullish' ? '看漲 Breaker' : '看跌 Breaker', LightweightCharts.LineStyle.Solid, 2));
     }
     
     if (showLiquidity && analyses.liquidityGrabs) {
@@ -143,6 +143,13 @@ export function redrawAllAnalyses(analyses, settings) {
                 markers.push({ ...marker, time: Number(time) });
             });
         }
+    }
+    // ** 新增：繪製 CHoCH **
+    if (showCHoCH && analyses.choch) {
+         analyses.choch.forEach(choch => {
+            drawZone(choch.price, choch.price, 'rgba(245, 158, 11, 0.8)', 'CHoCH', LightweightCharts.LineStyle.Dotted, 2);
+            markers.push(choch.marker);
+        });
     }
     if (showMSS && analyses.mss) {
          analyses.mss.forEach(mss => {

@@ -133,6 +133,61 @@ function analyzeAndGetMSS(candles, swingPoints, liquidityGrabs) {
 }
 
 /**
+ * **新增**: 找出所有 CHoCH (Change of Character) 事件。
+ * CHoCH 是比 MSS 更早期的反轉訊號。
+ * @param {object[]} candles - K 線數據陣列。
+ * @param {{swingHighs: object[], swingLows: object[]}} swingPoints - 波段高低點物件。
+ * @param {object} liquidityGrabs - 流動性掠奪事件物件。
+ * @returns {object[]} CHoCH 事件陣列。
+ */
+function analyzeAndGetCHoCH(candles, swingPoints, liquidityGrabs) {
+    const chochEvents = [];
+    const { swingHighs, swingLows } = swingPoints;
+
+    for (const timeStr in liquidityGrabs) {
+        const time = Number(timeStr);
+        const grabs = liquidityGrabs[time];
+        const grabCandleIndex = candles.findIndex(c => c.time === time);
+
+        for (const grab of grabs) {
+            if (grab.text === 'BSL') { // 向上掠奪後，尋找向下的 CHoCH
+                const recentLow = swingLows.filter(sl => sl.index < grabCandleIndex).pop();
+                if (!recentLow) continue;
+
+                for (let i = grabCandleIndex + 1; i < candles.length; i++) {
+                    if (candles[i].close < recentLow.price) {
+                        chochEvents.push({
+                            price: recentLow.price,
+                            marker: { time: candles[i].time, position: 'aboveBar', color: '#f59e0b', shape: 'circle', text: 'CHoCH' }
+                        });
+                        break; 
+                    }
+                }
+            } else if (grab.text === 'SSL') { // 向下掠奪後，尋找向上的 CHoCH
+                const recentHigh = swingHighs.filter(sh => sh.index < grabCandleIndex).pop();
+                if (!recentHigh) continue;
+
+                for (let i = grabCandleIndex + 1; i < candles.length; i++) {
+                    if (candles[i].close > recentHigh.price) {
+                        chochEvents.push({
+                            price: recentHigh.price,
+                            marker: { time: candles[i].time, position: 'belowBar', color: '#f59e0b', shape: 'circle', text: 'CHoCH' }
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+    }
+     return chochEvents.filter((event, index, self) =>
+        index === self.findIndex((e) => (
+            e.price === event.price && e.marker.time === event.marker.time
+        ))
+    );
+}
+
+
+/**
  * 找出所有公平價值缺口 (FVG)，並標記是否已被緩解。
  * @param {object[]} candles - K 線數據陣列。
  * @returns {object[]} FVG 事件陣列，包含 isMitigated 標記。
@@ -148,7 +203,6 @@ function analyzeAndGetFVGs(candles) {
             const fvgTop = prevCandle.low;
             const fvgBottom = nextCandle.high;
             let isMitigated = false;
-            // 檢查未來是否有 K 線的低點觸及此 FVG 的頂部
             for (let j = i + 2; j < candles.length; j++) {
                 if (candles[j].low <= fvgTop) { 
                     isMitigated = true; 
@@ -163,7 +217,6 @@ function analyzeAndGetFVGs(candles) {
             const fvgTop = nextCandle.low;
             const fvgBottom = prevCandle.high;
             let isMitigated = false;
-            // 檢查未來是否有 K 線的高點觸及此 FVG 的底部
             for (let j = i + 2; j < candles.length; j++) {
                 if (candles[j].high >= fvgBottom) { 
                     isMitigated = true; 
@@ -192,7 +245,6 @@ function analyzeAndGetOrderBlocks(candles) {
             const obTop = orderBlockCandle.high;
             const obBottom = orderBlockCandle.low;
             let isMitigated = false;
-            // 檢查未來是否有 K 線的高點觸及此 OB 的底部
             for (let j = i + 2; j < candles.length; j++) {
                 if (candles[j].high >= obBottom) { 
                     isMitigated = true; 
@@ -207,7 +259,6 @@ function analyzeAndGetOrderBlocks(candles) {
             const obTop = orderBlockCandle.high;
             const obBottom = orderBlockCandle.low;
             let isMitigated = false;
-            // 檢查未來是否有 K 線的低點觸及此 OB 的頂部
             for (let j = i + 2; j < candles.length; j++) {
                 if (candles[j].low <= obTop) { 
                     isMitigated = true; 
@@ -221,36 +272,61 @@ function analyzeAndGetOrderBlocks(candles) {
 }
 
 /**
+ * **新增**: 找出所有 Breaker Blocks (BB)。
+ * Breaker Block 是被突破後角色互換的訂單塊。
+ * @param {object[]} orderBlocks - 已找出的訂單塊陣列。
+ * @returns {object[]} Breaker Block 事件陣列。
+ */
+function analyzeAndGetBreakerBlocks(orderBlocks) {
+    return orderBlocks
+        .filter(ob => ob.isMitigated) // 只關心已被緩解 (突破) 的訂單塊
+        .map(ob => ({
+            // 角色互換
+            type: ob.type === 'bullish' ? 'bearish' : 'bullish', 
+            top: ob.top,
+            bottom: ob.bottom,
+            index: ob.index,
+            isMitigated: ob.isMitigated // 保留原始狀態
+        }));
+}
+
+
+/**
  * 統一呼叫所有分析函式的入口。
  * @param {object[]} candles - K 線數據陣列。
  * @returns {object} 包含所有分析結果的物件。
  */
 export function analyzeAll(candles) {
     if (!candles || candles.length < 3) {
-        return { swingPoints: { swingHighs: [], swingLows: [] }, liquidityGrabs: {}, mss: [], orderBlocks: [], fvgs: [] };
+        return { swingPoints: { swingHighs: [], swingLows: [] }, liquidityGrabs: {}, mss: [], choch: [], orderBlocks: [], fvgs: [], breakerBlocks: [] };
     }
     const swingPoints = analyzeAndGetSwingPoints(candles);
     const liquidityGrabs = analyzeLiquidityGrabs(candles, swingPoints);
+    const orderBlocks = analyzeAndGetOrderBlocks(candles);
+    
     return {
         swingPoints,
         liquidityGrabs,
         mss: analyzeAndGetMSS(candles, swingPoints, liquidityGrabs),
-        orderBlocks: analyzeAndGetOrderBlocks(candles),
+        choch: analyzeAndGetCHoCH(candles, swingPoints, liquidityGrabs), // 新增
+        orderBlocks: orderBlocks,
         fvgs: analyzeAndGetFVGs(candles),
+        breakerBlocks: analyzeAndGetBreakerBlocks(orderBlocks), // 新增
     };
 }
 
 /**
- * 尋找最近的興趣點 (POI - Point of Interest)，即 OB 或 FVG。
+ * 尋找最近的興趣點 (POI - Point of Interest)，即 OB, BB 或 FVG。
  * **此函式專為回測引擎設計，它不關心 POI 是否已被緩解，只關心其結構有效性。**
  * @param {number} currentIndex - 當前 K 線的索引。
  * @param {string} type - 'bullish' 或 'bearish'。
  * @param {object[]} orderBlocks - 訂單塊陣列。
  * @param {object[]} fvgs - FVG 陣列。
+ * @param {object[]} breakerBlocks - 突破塊陣列。
  * @returns {object|null} 最近的 POI 物件或 null。
  */
-export function findNearestPOI(currentIndex, type, orderBlocks, fvgs) {
-    const pois = [...orderBlocks, ...fvgs]
+export function findNearestPOI(currentIndex, type, orderBlocks, fvgs, breakerBlocks) {
+    const pois = [...orderBlocks, ...fvgs, ...breakerBlocks]
         .filter(p => p.type === type && p.index <= currentIndex)
         .sort((a, b) => b.index - a.index); 
     return pois.length > 0 ? pois[0] : null;

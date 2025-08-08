@@ -77,6 +77,14 @@
                         <label for="showLiquidity" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
                     </div>
                 </div>
+                <!-- ** 新增：CHoCH 開關 ** -->
+                <div class="flex items-center justify-between text-gray-400">
+                    <span>趨勢轉變 (CHoCH)</span>
+                    <div class="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="showCHoCH" x-model="showCHoCH" @change="redrawChartAnalyses()" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                        <label for="showCHoCH" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                    </div>
+                </div>
                 <div class="flex items-center justify-between text-gray-400">
                     <span>市場結構轉變 (MSS)</span>
                     <div class="relative inline-block w-10 align-middle select-none">
@@ -89,6 +97,14 @@
                     <div class="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="showOrderBlocks" x-model="showOrderBlocks" @change="redrawChartAnalyses()" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
                         <label for="showOrderBlocks" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                    </div>
+                </div>
+                <!-- ** 新增：Breaker Block 開關 ** -->
+                <div class="flex items-center justify-between text-gray-400">
+                    <span>突破塊 (Breaker)</span>
+                    <div class="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="showBreakerBlocks" x-model="showBreakerBlocks" @change="redrawChartAnalyses()" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                        <label for="showBreakerBlocks" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
                     </div>
                 </div>
                 <div class="flex items-center justify-between text-gray-400">
@@ -105,7 +121,6 @@
                         <label for="showMitigated" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
                     </div>
                 </div>
-                <!-- ** 新增：將範圍分析開關移至此處 ** -->
                 <div class="flex items-center justify-between text-gray-400">
                     <span>僅分析可見範圍</span>
                     <div class="relative inline-block w-10 align-middle select-none">

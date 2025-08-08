@@ -15,14 +15,13 @@ import { analyzeAll, findNearestPOI } from './smc-analyzer.js';
  */
 export function runBacktestSimulation(params) {
     const { candles, settings } = params;
-    // ** 修改：從 settings 中解構出 setupExpirationCandles **
     const { 
         investmentAmount, 
         riskPerTrade, 
         riskMultiGrab2, 
         riskMultiGrab3plus, 
         rrRatio,
-        setupExpirationCandles // 新增的參數
+        setupExpirationCandles
     } = settings;
 
     console.log("--- 開始策略回測模擬 ---");
@@ -31,7 +30,8 @@ export function runBacktestSimulation(params) {
     let equity = investmentAmount;
     const trades = [];
     const analyses = analyzeAll(candles); 
-    const { liquidityGrabs, mss, orderBlocks, fvgs } = analyses;
+    // ** 修改：解構出新的分析結果 (choch, breakerBlocks) **
+    const { liquidityGrabs, mss, choch, orderBlocks, fvgs, breakerBlocks } = analyses;
 
     let activeTrade = null;
     let setup = null; 
@@ -78,7 +78,6 @@ export function runBacktestSimulation(params) {
 
         // 步驟 2: 管理和推進當前的交易設定 (Setup)
         if (setup) {
-            // ** 修改：使用傳入的 setupExpirationCandles 變數 **
             if (i > setup.creationIndex + setupExpirationCandles) {
                 console.log(`%c[${candleTime}] SETUP EXPIRED: 超過 ${setupExpirationCandles} 根 K 棒未進場`, 'color: #f59e0b;');
                 setup = null;
@@ -126,18 +125,24 @@ export function runBacktestSimulation(params) {
 
         // 步驟 3: 如果沒有任何交易設定，則尋找新的交易機會
         if (!setup) {
+            // ** 修改：同時尋找 MSS 或 CHoCH 事件作為進場確認訊號 **
             const mssOnThisCandle = mss.find(m => m.marker.time === candle.time);
+            const chochOnThisCandle = choch.find(c => c.marker.time === candle.time);
             
-            if (mssOnThisCandle) {
-                const mssCandleIndex = i;
-                const direction = mssOnThisCandle.marker.position === 'belowBar' ? 'LONG' : 'SHORT';
-                console.log(`%c[${candleTime}] MSS Confirmed: ${direction}`, 'color: #3b82f6;');
+            const confirmationSignal = mssOnThisCandle || chochOnThisCandle;
+
+            if (confirmationSignal) {
+                const signalType = mssOnThisCandle ? 'MSS' : 'CHoCH';
+                const signalCandleIndex = i;
+                const direction = confirmationSignal.marker.position === 'belowBar' ? 'LONG' : 'SHORT';
+                console.log(`%c[${candleTime}] ${signalType} Confirmed: ${direction}`, 'color: #3b82f6;');
 
                 const poiDirection = direction === 'LONG' ? 'bullish' : 'bearish';
-                const poi = findNearestPOI(mssCandleIndex, poiDirection, orderBlocks, fvgs);
+                // ** 修改：將 breakerBlocks 傳入，尋找包含突破塊在內的所有 POI **
+                const poi = findNearestPOI(signalCandleIndex, poiDirection, orderBlocks, fvgs, breakerBlocks);
 
                 if (poi) {
-                    console.log(`%c[${candleTime}] Found POI for MSS:`, 'color: #a78bfa;', poi);
+                    console.log(`%c[${candleTime}] Found POI for ${signalType}:`, 'color: #a78bfa;', poi);
                     const grabCandleTime = Object.keys(liquidityGrabs).reverse().find(time => {
                         return Number(time) < candle.time && liquidityGrabs[time].some(g => (direction === 'LONG' ? g.text === 'SSL' : g.text === 'BSL'));
                     });
@@ -157,10 +162,10 @@ export function runBacktestSimulation(params) {
                             console.log(`%c[${candleTime}] SETUP CREATED: Waiting for entry.`, 'color: #eab308;', setup);
                         }
                     } else {
-                         console.log(`[${candleTime}] MSS 發生，但找不到相關的流動性掠奪事件。`);
+                         console.log(`[${candleTime}] ${signalType} 發生，但找不到相關的流動性掠奪事件。`);
                     }
                 } else {
-                     console.log(`[${candleTime}] MSS 發生，但找不到可用的 POI。`);
+                     console.log(`[${candleTime}] ${signalType} 發生，但找不到可用的 POI。`);
                 }
             }
         }
