@@ -48,7 +48,6 @@ const appComponent = () => {
     const loadInitialSettings = () => {
         const defaults = {
             symbol: 'BTCUSDT',
-            // ** 修改：常用交易對列表預設值 **
             commonSymbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
             interval: '15m',
             showLiquidity: true,
@@ -70,17 +69,18 @@ const appComponent = () => {
             setupExpirationCandles: 30,
             enableTrendFilter: false,
             emaPeriod: 50,
+            // ** 新增：MTA 預設值 **
+            enableMTA: false,
+            higherTimeframe: '4h',
         };
 
         try {
             const savedSettings = localStorage.getItem('smcAnalyzerSettings');
             const settings = savedSettings ? { ...defaults, ...JSON.parse(savedSettings) } : defaults;
             
-            // ** 新增：確保 commonSymbols 是一個陣列 **
             if (!Array.isArray(settings.commonSymbols) || settings.commonSymbols.length === 0) {
                 settings.commonSymbols = defaults.commonSymbols;
             }
-            // ** 新增：確保當前 symbol 存在於列表中 **
             if (!settings.commonSymbols.includes(settings.symbol)) {
                 settings.symbol = settings.commonSymbols[0] || defaults.symbol;
             }
@@ -96,10 +96,9 @@ const appComponent = () => {
 
     return {
         // --- 狀態 (State) ---
-        // ** 修改：狀態名稱與邏輯 **
         symbol: initialSettings.symbol,
         commonSymbols: initialSettings.commonSymbols,
-        newCustomSymbol: '', // 用於新增交易對的輸入框
+        newCustomSymbol: '',
         
         interval: initialSettings.interval,
         intervals: [
@@ -127,7 +126,11 @@ const appComponent = () => {
         visibleRange: null,
         enableTrendFilter: initialSettings.enableTrendFilter,
         emaPeriod: initialSettings.emaPeriod,
-
+        // ** 新增：MTA 狀態 **
+        enableMTA: initialSettings.enableMTA,
+        higherTimeframe: initialSettings.higherTimeframe,
+        higherTimeframeCandles: [],
+        
         // --- 回測相關狀態 ---
         isBacktestMode: initialSettings.isBacktestMode,
         backtestStartDate: initialSettings.backtestStartDate,
@@ -143,6 +146,12 @@ const appComponent = () => {
         isSimulationModalOpen: false,
         isSimulationSettingsModalOpen: false,
 
+        // ** 新增：計算可用的高時間週期選項 **
+        get availableHigherTimeframes() {
+            const currentIndex = this.intervals.findIndex(i => i.value === this.interval);
+            return this.intervals.slice(currentIndex + 1);
+        },
+
         init() {
             console.log('Alpine component initialized.');
             setupChart('chart', this.onVisibleRangeChanged.bind(this));
@@ -152,7 +161,7 @@ const appComponent = () => {
                 'symbol', 'commonSymbols', 'interval', 'showLiquidity', 'showMSS', 'showCHoCH', 'showOrderBlocks', 'showBreakerBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
                 'isBacktestMode', 'backtestStartDate', 'backtestEndDate', 'investmentAmount',
                 'riskPerTrade', 'riskMultiGrab2', 'riskMultiGrab3plus', 'rrRatio', 'setupExpirationCandles',
-                'enableTrendFilter', 'emaPeriod'
+                'enableTrendFilter', 'emaPeriod', 'enableMTA', 'higherTimeframe'
             ];
             settingsToWatch.forEach(setting => {
                 this.$watch(setting, (newValue, oldValue) => {
@@ -165,12 +174,18 @@ const appComponent = () => {
             this.$watch('isBacktestMode', (newValue) => {
                 if (!newValue) this.stopAutoUpdate();
             });
+            
+            // ** 新增：當 LTF 改變時，確保 HTF 仍然有效 **
+            this.$watch('interval', () => {
+                if (!this.availableHigherTimeframes.find(i => i.value === this.higherTimeframe)) {
+                    this.higherTimeframe = this.availableHigherTimeframes[0]?.value || '';
+                }
+            });
         },
 
         saveSettings() {
             const settings = {
-                symbol: this.symbol,
-                commonSymbols: this.commonSymbols,
+                symbol: this.symbol, commonSymbols: this.commonSymbols,
                 interval: this.interval, showLiquidity: this.showLiquidity,
                 showMSS: this.showMSS, showCHoCH: this.showCHoCH, showOrderBlocks: this.showOrderBlocks,
                 showBreakerBlocks: this.showBreakerBlocks, showFVGs: this.showFVGs,
@@ -181,29 +196,26 @@ const appComponent = () => {
                 riskMultiGrab3plus: this.riskMultiGrab3plus, rrRatio: this.rrRatio,
                 setupExpirationCandles: this.setupExpirationCandles,
                 enableTrendFilter: this.enableTrendFilter, emaPeriod: this.emaPeriod,
+                enableMTA: this.enableMTA, higherTimeframe: this.higherTimeframe,
             };
             localStorage.setItem('smcAnalyzerSettings', JSON.stringify(settings));
         },
 
-        // ** 新增：選擇交易對的函式 **
         selectSymbol(selected) {
             this.symbol = selected;
             this.stopAutoUpdate();
         },
 
-        // ** 新增：新增交易對的函式 **
         addSymbol() {
             const newSymbol = this.newCustomSymbol.trim().toUpperCase();
             if (newSymbol && !this.commonSymbols.includes(newSymbol)) {
                 this.commonSymbols.push(newSymbol);
-                this.newCustomSymbol = ''; // 清空輸入框
+                this.newCustomSymbol = '';
             }
         },
 
-        // ** 新增：移除交易對的函式 **
         removeSymbol(symbolToRemove) {
             this.commonSymbols = this.commonSymbols.filter(s => s !== symbolToRemove);
-            // 如果刪除的是當前選中的交易對，則自動選擇列表中的第一個
             if (this.symbol === symbolToRemove) {
                 this.symbol = this.commonSymbols[0] || '';
             }
@@ -215,14 +227,27 @@ const appComponent = () => {
             this.isLoading = true;
             this.error = '';
             try {
-                const { candles, volumes } = await fetchKlines({
+                // ** 修改：同時獲取 LTF 和 HTF 數據 **
+                const ltfParams = {
                     symbol: this.symbol, interval: this.interval, isBacktestMode: this.isBacktestMode,
                     backtestStartDate: this.backtestStartDate, backtestEndDate: this.backtestEndDate,
-                });
-                this.currentCandles = candles;
-                updateChartData(candles, volumes);
+                };
+                const ltfPromise = fetchKlines(ltfParams);
+
+                let htfPromise = Promise.resolve(null);
+                if (this.enableMTA && this.higherTimeframe) {
+                    const htfParams = { ...ltfParams, interval: this.higherTimeframe };
+                    htfPromise = fetchKlines(htfParams);
+                }
+
+                const [ltfResult, htfResult] = await Promise.all([ltfPromise, htfPromise]);
+                
+                this.currentCandles = ltfResult.candles;
+                this.higherTimeframeCandles = htfResult ? htfResult.candles : [];
+                
+                updateChartData(ltfResult.candles, ltfResult.volumes);
                 this.redrawChartAnalyses();
-                fitChart(candles.length);
+                fitChart(ltfResult.candles.length);
             } catch (e) {
                 this.error = `載入數據失敗: ${e.message}`;
                 console.error(e);
@@ -254,18 +279,20 @@ const appComponent = () => {
                 analyses.ema = calculateEMA(this.currentCandles, this.emaPeriod);
             }
             
+            // ** 新增：如果啟用 MTA，則分析 HTF 數據 **
+            let htfAnalyses = null;
+            if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
+                htfAnalyses = analyzeAll(this.higherTimeframeCandles, { enableTrendFilter: false });
+            }
+            
             const displaySettings = {
-                showLiquidity: this.showLiquidity,
-                showMSS: this.showMSS,
-                showCHoCH: this.showCHoCH,
-                showOrderBlocks: this.showOrderBlocks,
-                showBreakerBlocks: this.showBreakerBlocks,
-                showFVGs: this.showFVGs,
-                showMitigated: this.showMitigated,
-                enableTrendFilter: this.enableTrendFilter,
+                showLiquidity: this.showLiquidity, showMSS: this.showMSS,
+                showCHoCH: this.showCHoCH, showOrderBlocks: this.showOrderBlocks,
+                showBreakerBlocks: this.showBreakerBlocks, showFVGs: this.showFVGs,
+                showMitigated: this.showMitigated, enableTrendFilter: this.enableTrendFilter,
             };
             
-            redrawAllAnalyses(analyses, displaySettings);
+            redrawAllAnalyses(analyses, displaySettings, htfAnalyses);
         },
 
         runSimulationFromModal() {
@@ -277,6 +304,12 @@ const appComponent = () => {
             this.isSimulating = true;
             setTimeout(() => {
                 try {
+                    // ** 新增：為回測準備 HTF 分析數據 **
+                    let htfAnalyses = null;
+                    if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
+                        htfAnalyses = analyzeAll(this.higherTimeframeCandles);
+                    }
+
                     const backtestParams = {
                         candles: this.currentCandles,
                         settings: {
@@ -286,7 +319,9 @@ const appComponent = () => {
                             setupExpirationCandles: this.setupExpirationCandles,
                             enableTrendFilter: this.enableTrendFilter,
                             emaPeriod: this.emaPeriod,
-                        }
+                            enableMTA: this.enableMTA,
+                        },
+                        htfAnalyses: htfAnalyses,
                     };
                     this.simulationResults = runBacktestSimulation(backtestParams);
                     this.isSimulationModalOpen = true;

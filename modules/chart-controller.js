@@ -8,16 +8,13 @@
 let chart = null;
 let candleSeries = null;
 let volumeSeries = null;
-// ** 新增：EMA 圖表系列 **
 let emaSeries = null;
 let priceLines = []; 
 let markers = []; 
+let htfPriceLines = [];
 
 /**
  * 初始化圖表，並設定外觀、座標軸、縮放等行為。
- * @param {string} containerId - 圖表容器的 DOM 元素 ID。
- * @param {Function} onVisibleRangeChanged - 當圖表可見範圍變化時的回呼函式。
- * @returns {{chart: object, candleSeries: object, volumeSeries: object}} 圖表相關的實例。
  */
 export function setupChart(containerId, onVisibleRangeChanged) {
     if (chart) {
@@ -72,9 +69,8 @@ export function setupChart(containerId, onVisibleRangeChanged) {
         base: 0,
     });
     
-    // ** 新增：初始化 EMA 線圖系列 **
     emaSeries = chart.addLineSeries({
-        color: 'rgba(236, 239, 241, 0.8)', // 亮白色
+        color: 'rgba(236, 239, 241, 0.8)',
         lineWidth: 2,
         crosshairMarkerVisible: false,
         priceLineVisible: false,
@@ -112,10 +108,11 @@ function clearDrawings() {
     priceLines = [];
     markers = [];
     candleSeries.setMarkers([]);
-    // ** 新增：清除舊的 EMA 線 **
     if (emaSeries) {
         emaSeries.setData([]);
     }
+    htfPriceLines.forEach(line => chart.removePriceLine(line));
+    htfPriceLines = [];
 }
 
 function drawZone(price1, price2, color, title, lineStyle, lineWidth = 1) {
@@ -128,17 +125,48 @@ function drawZone(price1, price2, color, title, lineStyle, lineWidth = 1) {
     priceLines.push(topLine, bottomLine);
 }
 
-export function redrawAllAnalyses(analyses, settings) {
+function drawHtfZone(price1, price2, color, title) {
+    const lineOptions = {
+        price: 0,
+        color: color,
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Solid,
+        axisLabelVisible: true,
+        title: `HTF ${title}`,
+        axisLabelColor: '#1f2937',
+        axisLabelTextColor: color,
+    };
+    const topLine = candleSeries.createPriceLine({ ...lineOptions, price: price1 });
+    const bottomLine = candleSeries.createPriceLine({ ...lineOptions, price: price2 });
+    
+    // ** 修正：移除不穩定的背景繪製邏輯 **
+    priceLines.push(topLine, bottomLine);
+}
+
+
+export function redrawAllAnalyses(analyses, settings, htfAnalyses = null) {
     if (!candleSeries) return;
 
     clearDrawings();
 
     const { showLiquidity, showMSS, showCHoCH, showOrderBlocks, showBreakerBlocks, showFVGs, showMitigated, enableTrendFilter } = settings;
 
-    // ** 新增：繪製 EMA 線 **
     if (enableTrendFilter && analyses.ema && emaSeries) {
         const validEmaData = analyses.ema.filter(d => d.value !== undefined);
         emaSeries.setData(validEmaData);
+    }
+    
+    if (htfAnalyses) {
+        const htfPois = [
+            ...htfAnalyses.orderBlocks,
+            ...htfAnalyses.fvgs,
+            ...htfAnalyses.breakerBlocks
+        ].filter(p => !p.isMitigated);
+
+        htfPois.forEach(poi => {
+            const color = poi.type === 'bullish' ? 'rgba(16, 185, 129, 1)' : 'rgba(239, 68, 68, 1)';
+            drawHtfZone(poi.top, poi.bottom, color, poi.type.toUpperCase());
+        });
     }
 
     const fvgsToDraw = showMitigated ? analyses.fvgs : analyses.fvgs.filter(fvg => !fvg.isMitigated);
@@ -146,13 +174,13 @@ export function redrawAllAnalyses(analyses, settings) {
     const breakerBlocksToDraw = showMitigated ? analyses.breakerBlocks : analyses.breakerBlocks.filter(bb => !bb.isMitigated);
 
     if (showFVGs && fvgsToDraw) {
-        fvgsToDraw.forEach(fvg => drawZone(fvg.top, fvg.bottom, fvg.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', fvg.type === 'bullish' ? '看漲 FVG' : '看跌 FVG', LightweightCharts.LineStyle.Dashed));
+        fvgsToDraw.forEach(fvg => drawZone(fvg.top, fvg.bottom, fvg.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', 'FVG', LightweightCharts.LineStyle.Dashed));
     }
     if (showOrderBlocks && orderBlocksToDraw) {
-        orderBlocksToDraw.forEach(ob => drawZone(ob.top, ob.bottom, ob.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', ob.type === 'bullish' ? '看漲 OB' : '看跌 OB', LightweightCharts.LineStyle.Solid, 2));
+        orderBlocksToDraw.forEach(ob => drawZone(ob.top, ob.bottom, ob.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', 'OB', LightweightCharts.LineStyle.Solid, 2));
     }
     if (showBreakerBlocks && breakerBlocksToDraw) {
-        breakerBlocksToDraw.forEach(bb => drawZone(bb.top, bb.bottom, bb.type === 'bullish' ? 'rgba(139, 92, 246, 0.8)' : 'rgba(139, 92, 246, 0.8)', bb.type === 'bullish' ? '看漲 Breaker' : '看跌 Breaker', LightweightCharts.LineStyle.Solid, 2));
+        breakerBlocksToDraw.forEach(bb => drawZone(bb.top, bb.bottom, 'rgba(139, 92, 246, 0.8)', 'Breaker', LightweightCharts.LineStyle.Solid, 2));
     }
     
     if (showLiquidity && analyses.liquidityGrabs) {

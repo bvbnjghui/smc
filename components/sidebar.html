@@ -10,14 +10,12 @@
             <!-- 自訂常用交易對列表 -->
             <div class="space-y-3">
                 <label class="text-gray-400">常用交易對:</label>
-                <!-- ** 修改：將輸入框和按鈕改為上下排列以解決排版問題 ** -->
                 <div class="space-y-2">
                     <input type="text" x-model="newCustomSymbol" @keydown.enter="addSymbol()" placeholder="例如：ADAUSDT" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 uppercase placeholder-gray-500">
                     <button @click="addSymbol()" class="w-full bg-teal-600 text-white font-semibold py-2 rounded-lg hover:bg-teal-700 transition duration-300">
                         新增
                     </button>
                 </div>
-                <!-- 交易對列表 -->
                 <div class="space-y-2 max-h-48 overflow-y-auto">
                     <template x-for="sym in commonSymbols" :key="sym">
                         <div 
@@ -156,6 +154,26 @@
                 <div x-show="enableTrendFilter" x-collapse class="space-y-2">
                     <label for="emaPeriod" class="text-sm text-gray-400">EMA 週期:</label>
                     <input type="number" id="emaPeriod" x-model.number="emaPeriod" @change="redrawChartAnalyses()" placeholder="例如：50" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 placeholder-gray-500">
+                </div>
+            </div>
+            
+            <!-- ** 新增：多時間週期分析 (MTA) ** -->
+            <div class="space-y-4 pt-4 border-t border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-300">多時間週期分析 (MTA)</h3>
+                <div class="flex items-center justify-between text-gray-400">
+                    <span>啟用 MTA</span>
+                    <div class="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="enableMTA" x-model="enableMTA" @change="fetchData()" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                        <label for="enableMTA" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                    </div>
+                </div>
+                <div x-show="enableMTA" x-collapse class="space-y-2">
+                    <label for="higherTimeframe" class="text-sm text-gray-400">高時間週期 (HTF):</label>
+                    <select id="higherTimeframe" x-model="higherTimeframe" @change="fetchData()" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                        <template x-for="option in availableHigherTimeframes">
+                            <option :value="option.value" x-text="option.label"></option>
+                        </template>
+                    </select>
                 </div>
             </div>
 
