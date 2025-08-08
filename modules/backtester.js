@@ -21,7 +21,10 @@ export function runBacktestSimulation(params) {
         riskMultiGrab2, 
         riskMultiGrab3plus, 
         rrRatio,
-        setupExpirationCandles
+        setupExpirationCandles,
+        // ** 新增：解構出趨勢過濾器設定 **
+        enableTrendFilter,
+        emaPeriod
     } = settings;
 
     console.log("--- 開始策略回測模擬 ---");
@@ -29,9 +32,10 @@ export function runBacktestSimulation(params) {
 
     let equity = investmentAmount;
     const trades = [];
-    const analyses = analyzeAll(candles); 
-    // ** 修改：解構出新的分析結果 (choch, breakerBlocks) **
-    const { liquidityGrabs, mss, choch, orderBlocks, fvgs, breakerBlocks } = analyses;
+    
+    // ** 修改：將設定傳入分析器 **
+    const analyses = analyzeAll(candles, { enableTrendFilter, emaPeriod }); 
+    const { liquidityGrabs, mss, choch, orderBlocks, fvgs, breakerBlocks, ema } = analyses;
 
     let activeTrade = null;
     let setup = null; 
@@ -40,7 +44,6 @@ export function runBacktestSimulation(params) {
         const candle = candles[i];
         const candleTime = new Date(candle.time * 1000).toLocaleString();
 
-        // 步驟 1: 檢查當前活躍交易是否需要出場
         if (activeTrade) {
             let exitPrice = null;
             let exitReason = '';
@@ -68,7 +71,6 @@ export function runBacktestSimulation(params) {
                 equity += pnl;
                 const tradeResult = { ...activeTrade, exitPrice, exitTime: candle.time, pnl, exitReason };
                 trades.push(tradeResult);
-                console.log(`%c[${candleTime}] TRADE CLOSED: ${exitReason}`, 'color: orange;', tradeResult);
                 activeTrade = null;
                 setup = null;
             }
@@ -76,15 +78,12 @@ export function runBacktestSimulation(params) {
 
         if (activeTrade) continue;
 
-        // 步驟 2: 管理和推進當前的交易設定 (Setup)
         if (setup) {
             if (i > setup.creationIndex + setupExpirationCandles) {
-                console.log(`%c[${candleTime}] SETUP EXPIRED: 超過 ${setupExpirationCandles} 根 K 棒未進場`, 'color: #f59e0b;');
                 setup = null;
             }
             else if ((setup.direction === 'LONG' && candle.low <= setup.protectionPoint) ||
                 (setup.direction === 'SHORT' && candle.high >= setup.protectionPoint)) {
-                console.log(`%c[${candleTime}] SETUP INVALIDATED: 價格突破保護點 ${setup.protectionPoint}`, 'color: #f59e0b;');
                 setup = null;
             }
             else if (setup.state === 'WAITING_FOR_ENTRY') {
@@ -116,33 +115,36 @@ export function runBacktestSimulation(params) {
                             size,
                             setupType: setup.type,
                         };
-                        console.log(`%c[${candleTime}] TRADE ENTERED:`, 'color: #22c55e;', activeTrade);
                         setup = null;
                     }
                 }
             }
         }
 
-        // 步驟 3: 如果沒有任何交易設定，則尋找新的交易機會
         if (!setup) {
-            // ** 修改：同時尋找 MSS 或 CHoCH 事件作為進場確認訊號 **
-            const mssOnThisCandle = mss.find(m => m.marker.time === candle.time);
-            const chochOnThisCandle = choch.find(c => c.marker.time === candle.time);
-            
-            const confirmationSignal = mssOnThisCandle || chochOnThisCandle;
+            const confirmationSignal = mss.find(m => m.marker.time === candle.time) || choch.find(c => c.marker.time === candle.time);
 
             if (confirmationSignal) {
-                const signalType = mssOnThisCandle ? 'MSS' : 'CHoCH';
                 const signalCandleIndex = i;
                 const direction = confirmationSignal.marker.position === 'belowBar' ? 'LONG' : 'SHORT';
-                console.log(`%c[${candleTime}] ${signalType} Confirmed: ${direction}`, 'color: #3b82f6;');
+
+                // ** 新增：趨勢過濾邏輯 **
+                if (enableTrendFilter && ema[signalCandleIndex]?.value) {
+                    const currentEma = ema[signalCandleIndex].value;
+                    if (direction === 'LONG' && candle.close < currentEma) {
+                        console.log(`%c[${candleTime}] 過濾做多訊號：價格低於 EMA (${currentEma.toFixed(2)})`, 'color: #888;');
+                        continue; // 逆勢，跳過此交易機會
+                    }
+                    if (direction === 'SHORT' && candle.close > currentEma) {
+                        console.log(`%c[${candleTime}] 過濾做空訊號：價格高於 EMA (${currentEma.toFixed(2)})`, 'color: #888;');
+                        continue; // 逆勢，跳過此交易機會
+                    }
+                }
 
                 const poiDirection = direction === 'LONG' ? 'bullish' : 'bearish';
-                // ** 修改：將 breakerBlocks 傳入，尋找包含突破塊在內的所有 POI **
                 const poi = findNearestPOI(signalCandleIndex, poiDirection, orderBlocks, fvgs, breakerBlocks);
 
                 if (poi) {
-                    console.log(`%c[${candleTime}] Found POI for ${signalType}:`, 'color: #a78bfa;', poi);
                     const grabCandleTime = Object.keys(liquidityGrabs).reverse().find(time => {
                         return Number(time) < candle.time && liquidityGrabs[time].some(g => (direction === 'LONG' ? g.text === 'SSL' : g.text === 'BSL'));
                     });
@@ -159,19 +161,13 @@ export function runBacktestSimulation(params) {
                                 grabCount: liquidityGrabs[grabCandleTime].length,
                                 creationIndex: i
                             };
-                            console.log(`%c[${candleTime}] SETUP CREATED: Waiting for entry.`, 'color: #eab308;', setup);
                         }
-                    } else {
-                         console.log(`[${candleTime}] ${signalType} 發生，但找不到相關的流動性掠奪事件。`);
                     }
-                } else {
-                     console.log(`[${candleTime}] ${signalType} 發生，但找不到可用的 POI。`);
                 }
             }
         }
     }
 
-    // 計算最終統計數據
     const totalTrades = trades.length;
     const wins = trades.filter(t => t.pnl > 0).length;
     const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;

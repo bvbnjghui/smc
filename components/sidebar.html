@@ -77,7 +77,6 @@
                         <label for="showLiquidity" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
                     </div>
                 </div>
-                <!-- ** 新增：CHoCH 開關 ** -->
                 <div class="flex items-center justify-between text-gray-400">
                     <span>趨勢轉變 (CHoCH)</span>
                     <div class="relative inline-block w-10 align-middle select-none">
@@ -99,7 +98,6 @@
                         <label for="showOrderBlocks" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
                     </div>
                 </div>
-                <!-- ** 新增：Breaker Block 開關 ** -->
                 <div class="flex items-center justify-between text-gray-400">
                     <span>突破塊 (Breaker)</span>
                     <div class="relative inline-block w-10 align-middle select-none">
@@ -127,6 +125,22 @@
                         <input type="checkbox" id="analyzeVisibleRange" x-model="analyzeVisibleRangeOnly" @change="redrawChartAnalyses()" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
                         <label for="analyzeVisibleRange" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
                     </div>
+                </div>
+            </div>
+
+            <!-- ** 新增：趨勢過濾器設定區塊 ** -->
+            <div class="space-y-4 pt-4 border-t border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-300">趨勢過濾器 (EMA)</h3>
+                <div class="flex items-center justify-between text-gray-400">
+                    <span>啟用過濾器</span>
+                    <div class="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="enableTrendFilter" x-model="enableTrendFilter" @change="redrawChartAnalyses()" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                        <label for="enableTrendFilter" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                    </div>
+                </div>
+                <div x-show="enableTrendFilter" x-collapse class="space-y-2">
+                    <label for="emaPeriod" class="text-sm text-gray-400">EMA 週期:</label>
+                    <input type="number" id="emaPeriod" x-model.number="emaPeriod" @change="redrawChartAnalyses()" placeholder="例如：50" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50 placeholder-gray-500">
                 </div>
             </div>
 

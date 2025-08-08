@@ -7,12 +7,12 @@
 
 import Alpine from 'https://unpkg.com/alpinejs@3.x.x/dist/module.esm.js';
 import collapse from 'https://unpkg.com/@alpinejs/collapse@3.x.x/dist/module.esm.js';
-// ** 新增：引入 anchor 插件 **
 import anchor from 'https://unpkg.com/@alpinejs/anchor@3.x.x/dist/module.esm.js';
 
 import { fetchKlines } from './modules/api.js';
 import { setupChart, updateChartData, fitChart, redrawAllAnalyses } from './modules/chart-controller.js';
-import { analyzeAll } from './modules/smc-analyzer.js';
+// ** 修改：同時匯入 calculateEMA 函式 **
+import { analyzeAll, calculateEMA } from './modules/smc-analyzer.js';
 import { runBacktestSimulation } from './modules/backtester.js';
 
 async function loadComponent(componentName, containerId) {
@@ -67,6 +67,8 @@ const appComponent = () => {
             riskMultiGrab3plus: 2,
             rrRatio: 2,
             setupExpirationCandles: 30,
+            enableTrendFilter: false,
+            emaPeriod: 50,
         };
         const commonSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
 
@@ -114,6 +116,8 @@ const appComponent = () => {
         showMitigated: initialSettings.showMitigated,
         analyzeVisibleRangeOnly: initialSettings.analyzeVisibleRangeOnly,
         visibleRange: null,
+        enableTrendFilter: initialSettings.enableTrendFilter,
+        emaPeriod: initialSettings.emaPeriod,
 
         // --- 回測相關狀態 ---
         isBacktestMode: initialSettings.isBacktestMode,
@@ -142,7 +146,8 @@ const appComponent = () => {
             const settingsToWatch = [
                 'symbol', 'interval', 'showLiquidity', 'showMSS', 'showCHoCH', 'showOrderBlocks', 'showBreakerBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
                 'isBacktestMode', 'backtestStartDate', 'backtestEndDate', 'investmentAmount',
-                'riskPerTrade', 'riskMultiGrab2', 'riskMultiGrab3plus', 'rrRatio', 'setupExpirationCandles'
+                'riskPerTrade', 'riskMultiGrab2', 'riskMultiGrab3plus', 'rrRatio', 'setupExpirationCandles',
+                'enableTrendFilter', 'emaPeriod'
             ];
             settingsToWatch.forEach(setting => {
                 this.$watch(setting, (newValue, oldValue) => {
@@ -168,6 +173,7 @@ const appComponent = () => {
                 riskPerTrade: this.riskPerTrade, riskMultiGrab2: this.riskMultiGrab2,
                 riskMultiGrab3plus: this.riskMultiGrab3plus, rrRatio: this.rrRatio,
                 setupExpirationCandles: this.setupExpirationCandles,
+                enableTrendFilter: this.enableTrendFilter, emaPeriod: this.emaPeriod,
             };
             localStorage.setItem('smcAnalyzerSettings', JSON.stringify(settings));
         },
@@ -204,23 +210,34 @@ const appComponent = () => {
         redrawChartAnalyses() {
             if (this.currentCandles.length === 0) return;
 
-            let candlesToAnalyze = this.currentCandles;
-
+            // 1. 決定用於標準 SMC 分析的 K 棒範圍 (遵守「僅分析可見範圍」設定)
+            let candlesForStandardAnalysis = this.currentCandles;
             if (this.analyzeVisibleRangeOnly && this.visibleRange) {
                 const from = Math.floor(this.visibleRange.from);
                 const to = Math.ceil(this.visibleRange.to);
-                candlesToAnalyze = this.currentCandles.slice(from, to);
+                candlesForStandardAnalysis = this.currentCandles.slice(from, to);
             }
             
-            const analyses = analyzeAll(candlesToAnalyze);
+            // 2. 在可能被切片的數據上執行標準分析 (此處不計算 EMA)
+            const analyses = analyzeAll(candlesForStandardAnalysis, { enableTrendFilter: false });
+
+            // 3. 如果啟用趨勢過濾器，則「永遠」在完整的數據集上計算 EMA 以確保準確性
+            if (this.enableTrendFilter) {
+                analyses.ema = calculateEMA(this.currentCandles, this.emaPeriod);
+            }
+            
+            // 4. 準備顯示設定並重繪圖表
             const displaySettings = {
-                showLiquidity: this.showLiquidity, showMSS: this.showMSS,
+                showLiquidity: this.showLiquidity,
+                showMSS: this.showMSS,
                 showCHoCH: this.showCHoCH,
                 showOrderBlocks: this.showOrderBlocks,
                 showBreakerBlocks: this.showBreakerBlocks,
                 showFVGs: this.showFVGs,
                 showMitigated: this.showMitigated,
+                enableTrendFilter: this.enableTrendFilter,
             };
+            
             redrawAllAnalyses(analyses, displaySettings);
         },
 
@@ -240,6 +257,8 @@ const appComponent = () => {
                             riskMultiGrab2: this.riskMultiGrab2, riskMultiGrab3plus: this.riskMultiGrab3plus,
                             rrRatio: this.rrRatio,
                             setupExpirationCandles: this.setupExpirationCandles,
+                            enableTrendFilter: this.enableTrendFilter,
+                            emaPeriod: this.emaPeriod,
                         }
                     };
                     this.simulationResults = runBacktestSimulation(backtestParams);
@@ -281,7 +300,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadAllComponents();
     console.log('所有元件已載入。');
 
-    // ** 修改：註冊 anchor 和 collapse 插件 **
     Alpine.plugin(anchor);
     Alpine.plugin(collapse);
     Alpine.data('app', appComponent);

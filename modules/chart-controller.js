@@ -8,6 +8,8 @@
 let chart = null;
 let candleSeries = null;
 let volumeSeries = null;
+// ** 新增：EMA 圖表系列 **
+let emaSeries = null;
 let priceLines = []; 
 let markers = []; 
 
@@ -19,7 +21,6 @@ let markers = [];
  */
 export function setupChart(containerId, onVisibleRangeChanged) {
     if (chart) {
-        console.warn('圖表已被初始化，中止本次 setupChart 呼叫。');
         return { chart, candleSeries, volumeSeries };
     }
 
@@ -70,6 +71,15 @@ export function setupChart(containerId, onVisibleRangeChanged) {
         priceScaleId: '',
         base: 0,
     });
+    
+    // ** 新增：初始化 EMA 線圖系列 **
+    emaSeries = chart.addLineSeries({
+        color: 'rgba(236, 239, 241, 0.8)', // 亮白色
+        lineWidth: 2,
+        crosshairMarkerVisible: false,
+        priceLineVisible: false,
+        lastValueVisible: false,
+    });
 
     new ResizeObserver(entries => {
         if (entries.length === 0 || entries[0].target.offsetHeight === 0) return;
@@ -102,6 +112,10 @@ function clearDrawings() {
     priceLines = [];
     markers = [];
     candleSeries.setMarkers([]);
+    // ** 新增：清除舊的 EMA 線 **
+    if (emaSeries) {
+        emaSeries.setData([]);
+    }
 }
 
 function drawZone(price1, price2, color, title, lineStyle, lineWidth = 1) {
@@ -119,11 +133,16 @@ export function redrawAllAnalyses(analyses, settings) {
 
     clearDrawings();
 
-    const { showLiquidity, showMSS, showCHoCH, showOrderBlocks, showBreakerBlocks, showFVGs, showMitigated } = settings;
+    const { showLiquidity, showMSS, showCHoCH, showOrderBlocks, showBreakerBlocks, showFVGs, showMitigated, enableTrendFilter } = settings;
+
+    // ** 新增：繪製 EMA 線 **
+    if (enableTrendFilter && analyses.ema && emaSeries) {
+        const validEmaData = analyses.ema.filter(d => d.value !== undefined);
+        emaSeries.setData(validEmaData);
+    }
 
     const fvgsToDraw = showMitigated ? analyses.fvgs : analyses.fvgs.filter(fvg => !fvg.isMitigated);
     const orderBlocksToDraw = showMitigated ? analyses.orderBlocks : analyses.orderBlocks.filter(ob => !ob.isMitigated);
-    // ** 新增：從分析結果中取得 Breaker Blocks **
     const breakerBlocksToDraw = showMitigated ? analyses.breakerBlocks : analyses.breakerBlocks.filter(bb => !bb.isMitigated);
 
     if (showFVGs && fvgsToDraw) {
@@ -132,7 +151,6 @@ export function redrawAllAnalyses(analyses, settings) {
     if (showOrderBlocks && orderBlocksToDraw) {
         orderBlocksToDraw.forEach(ob => drawZone(ob.top, ob.bottom, ob.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', ob.type === 'bullish' ? '看漲 OB' : '看跌 OB', LightweightCharts.LineStyle.Solid, 2));
     }
-    // ** 新增：繪製 Breaker Blocks **
     if (showBreakerBlocks && breakerBlocksToDraw) {
         breakerBlocksToDraw.forEach(bb => drawZone(bb.top, bb.bottom, bb.type === 'bullish' ? 'rgba(139, 92, 246, 0.8)' : 'rgba(139, 92, 246, 0.8)', bb.type === 'bullish' ? '看漲 Breaker' : '看跌 Breaker', LightweightCharts.LineStyle.Solid, 2));
     }
@@ -144,7 +162,6 @@ export function redrawAllAnalyses(analyses, settings) {
             });
         }
     }
-    // ** 新增：繪製 CHoCH **
     if (showCHoCH && analyses.choch) {
          analyses.choch.forEach(choch => {
             drawZone(choch.price, choch.price, 'rgba(245, 158, 11, 0.8)', 'CHoCH', LightweightCharts.LineStyle.Dotted, 2);

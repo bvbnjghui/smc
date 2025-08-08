@@ -6,6 +6,40 @@
  */
 
 /**
+ * **修改**: 計算並匯出指數移動平均線 (EMA)。
+ * @param {object[]} candles - K 線數據陣列。
+ * @param {number} period - EMA 的計算週期。
+ * @returns {object[]} EMA 數據陣列。
+ */
+export function calculateEMA(candles, period) {
+    const emaValues = [];
+    if (candles.length < period) return emaValues;
+
+    const k = 2 / (period + 1);
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+        sum += candles[i].close;
+    }
+    let prevEma = sum / period;
+    
+    for (let i = 0; i < candles.length; i++) {
+        if (i < period -1) {
+             emaValues.push({ time: candles[i].time, value: undefined });
+             continue;
+        }
+        if (i === period -1) {
+            emaValues.push({ time: candles[i].time, value: prevEma });
+            continue;
+        }
+        const currentEma = (candles[i].close * k) + (prevEma * (1 - k));
+        emaValues.push({ time: candles[i].time, value: currentEma });
+        prevEma = currentEma;
+    }
+    return emaValues;
+}
+
+
+/**
  * 找出所有的波段高/低點 (Swing High/Low)。
  * @param {object[]} candles - K 線數據陣列。
  * @returns {{swingHighs: object[], swingLows: object[]}} 波段高低點物件。
@@ -133,8 +167,7 @@ function analyzeAndGetMSS(candles, swingPoints, liquidityGrabs) {
 }
 
 /**
- * **新增**: 找出所有 CHoCH (Change of Character) 事件。
- * CHoCH 是比 MSS 更早期的反轉訊號。
+ * 找出所有 CHoCH (Change of Character) 事件。
  * @param {object[]} candles - K 線數據陣列。
  * @param {{swingHighs: object[], swingLows: object[]}} swingPoints - 波段高低點物件。
  * @param {object} liquidityGrabs - 流動性掠奪事件物件。
@@ -150,7 +183,7 @@ function analyzeAndGetCHoCH(candles, swingPoints, liquidityGrabs) {
         const grabCandleIndex = candles.findIndex(c => c.time === time);
 
         for (const grab of grabs) {
-            if (grab.text === 'BSL') { // 向上掠奪後，尋找向下的 CHoCH
+            if (grab.text === 'BSL') { 
                 const recentLow = swingLows.filter(sl => sl.index < grabCandleIndex).pop();
                 if (!recentLow) continue;
 
@@ -163,7 +196,7 @@ function analyzeAndGetCHoCH(candles, swingPoints, liquidityGrabs) {
                         break; 
                     }
                 }
-            } else if (grab.text === 'SSL') { // 向下掠奪後，尋找向上的 CHoCH
+            } else if (grab.text === 'SSL') { 
                 const recentHigh = swingHighs.filter(sh => sh.index < grabCandleIndex).pop();
                 if (!recentHigh) continue;
 
@@ -198,7 +231,6 @@ function analyzeAndGetFVGs(candles) {
         const prevCandle = candles[i - 1];
         const nextCandle = candles[i + 1];
 
-        // 看漲 FVG (Bullish FVG)
         if (prevCandle.low > nextCandle.high) {
             const fvgTop = prevCandle.low;
             const fvgBottom = nextCandle.high;
@@ -212,7 +244,6 @@ function analyzeAndGetFVGs(candles) {
             results.push({ type: 'bullish', top: fvgTop, bottom: fvgBottom, index: i, isMitigated });
         }
 
-        // 看跌 FVG (Bearish FVG)
         if (prevCandle.high < nextCandle.low) {
             const fvgTop = nextCandle.low;
             const fvgBottom = prevCandle.high;
@@ -240,7 +271,6 @@ function analyzeAndGetOrderBlocks(candles) {
         const orderBlockCandle = candles[i];
         const breakCandle = candles[i + 1];
 
-        // 看跌 OB (Bearish OB)
         if (orderBlockCandle.close > orderBlockCandle.open && breakCandle.close < orderBlockCandle.low) {
             const obTop = orderBlockCandle.high;
             const obBottom = orderBlockCandle.low;
@@ -254,7 +284,6 @@ function analyzeAndGetOrderBlocks(candles) {
             results.push({ type: 'bearish', top: obTop, bottom: obBottom, index: i, isMitigated });
         }
 
-        // 看漲 OB (Bullish OB)
         if (orderBlockCandle.close < orderBlockCandle.open && breakCandle.close > orderBlockCandle.high) {
             const obTop = orderBlockCandle.high;
             const obBottom = orderBlockCandle.low;
@@ -272,21 +301,19 @@ function analyzeAndGetOrderBlocks(candles) {
 }
 
 /**
- * **新增**: 找出所有 Breaker Blocks (BB)。
- * Breaker Block 是被突破後角色互換的訂單塊。
+ * 找出所有 Breaker Blocks (BB)。
  * @param {object[]} orderBlocks - 已找出的訂單塊陣列。
  * @returns {object[]} Breaker Block 事件陣列。
  */
 function analyzeAndGetBreakerBlocks(orderBlocks) {
     return orderBlocks
-        .filter(ob => ob.isMitigated) // 只關心已被緩解 (突破) 的訂單塊
+        .filter(ob => ob.isMitigated)
         .map(ob => ({
-            // 角色互換
             type: ob.type === 'bullish' ? 'bearish' : 'bullish', 
             top: ob.top,
             bottom: ob.bottom,
             index: ob.index,
-            isMitigated: ob.isMitigated // 保留原始狀態
+            isMitigated: ob.isMitigated
         }));
 }
 
@@ -294,30 +321,35 @@ function analyzeAndGetBreakerBlocks(orderBlocks) {
 /**
  * 統一呼叫所有分析函式的入口。
  * @param {object[]} candles - K 線數據陣列。
+ * @param {object} settings - 包含分析所需設定的物件。
  * @returns {object} 包含所有分析結果的物件。
  */
-export function analyzeAll(candles) {
+export function analyzeAll(candles, settings = {}) {
+    const { enableTrendFilter, emaPeriod } = settings;
+
     if (!candles || candles.length < 3) {
-        return { swingPoints: { swingHighs: [], swingLows: [] }, liquidityGrabs: {}, mss: [], choch: [], orderBlocks: [], fvgs: [], breakerBlocks: [] };
+        return { swingPoints: { swingHighs: [], swingLows: [] }, liquidityGrabs: {}, mss: [], choch: [], orderBlocks: [], fvgs: [], breakerBlocks: [], ema: [] };
     }
     const swingPoints = analyzeAndGetSwingPoints(candles);
     const liquidityGrabs = analyzeLiquidityGrabs(candles, swingPoints);
     const orderBlocks = analyzeAndGetOrderBlocks(candles);
     
+    const ema = enableTrendFilter ? calculateEMA(candles, emaPeriod) : [];
+
     return {
         swingPoints,
         liquidityGrabs,
         mss: analyzeAndGetMSS(candles, swingPoints, liquidityGrabs),
-        choch: analyzeAndGetCHoCH(candles, swingPoints, liquidityGrabs), // 新增
+        choch: analyzeAndGetCHoCH(candles, swingPoints, liquidityGrabs),
         orderBlocks: orderBlocks,
         fvgs: analyzeAndGetFVGs(candles),
-        breakerBlocks: analyzeAndGetBreakerBlocks(orderBlocks), // 新增
+        breakerBlocks: analyzeAndGetBreakerBlocks(orderBlocks),
+        ema: ema,
     };
 }
 
 /**
  * 尋找最近的興趣點 (POI - Point of Interest)，即 OB, BB 或 FVG。
- * **此函式專為回測引擎設計，它不關心 POI 是否已被緩解，只關心其結構有效性。**
  * @param {number} currentIndex - 當前 K 線的索引。
  * @param {string} type - 'bullish' 或 'bearish'。
  * @param {object[]} orderBlocks - 訂單塊陣列。
