@@ -1,162 +1,117 @@
 <!-- smc/components/help-modal.html -->
 <div x-show="isHelpModalOpen" class="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" x-transition>
-    <div @click.outside="isHelpModalOpen = false" class="bg-gray-800 rounded-2xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6" x-show="isHelpModalOpen" x-transition.scale>
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-2xl font-bold text-teal-400">如何解讀圖表</h2>
+    <div @click.outside="isHelpModalOpen = false" class="bg-gray-800 rounded-2xl shadow-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6" x-show="isHelpModalOpen" x-transition.scale>
+        <div class="flex justify-between items-center mb-6 sticky top-0 bg-gray-800 py-2 -mt-6 -mx-6 px-6 z-10">
+            <h2 class="text-2xl font-bold text-teal-400">SMC 實戰交易流程</h2>
             <button @click="isHelpModalOpen = false" class="p-1 rounded-full hover:bg-gray-700">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
-        <div class="space-y-4" x-data="{ open: 'strategy' }">
-            <!-- 綜合交易策略 -->
-            <div class="border-b border-gray-700 pb-2">
-                <button @click="open = open === 'strategy' ? '' : 'strategy'" class="w-full text-left">
+        <div class="space-y-4" x-data="{ open: 'workflow' }">
+
+            <!-- 核心交易流程 -->
+            <div class="border-b border-gray-700 pb-4">
+                <button @click="open = open === 'workflow' ? '' : 'workflow'" class="w-full text-left">
                     <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                        <span>綜合交易策略範例</span>
-                        <span x-show="open !== 'strategy'">&#9662;</span>
-                        <span x-show="open === 'strategy'">&#9652;</span>
+                        <span>核心交易流程 (Top-Down)</span>
+                        <span x-show="open !== 'workflow'">&#9662;</span>
+                        <span x-show="open === 'workflow'">&#9652;</span>
                     </h3>
                 </button>
-                <div x-show="open === 'strategy'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                    <p>一個典型的、高勝率的 SMC 交易劇本通常包含以下幾個步驟：</p>
-                    <ol class="list-decimal list-inside space-y-1">
-                        <li><strong>流動性掠奪 (Liquidity Grab)</strong>：市場主力先收割場上的流動性（停損單）。</li>
-                        <li><strong>趨勢轉變 (CHoCH)</strong>: 市場出現反轉的「早期」意圖。</li>
-                        <li><strong>結構轉變 (MSS)</strong>：市場反轉意圖的「確認」。</li>
-                        <li><strong>回到入場區 (Return to POI)</strong>：價格回到聰明錢的佈局區域（訂單塊、突破塊或 FVG），這是我們尋找進場機會的地方。</li>
+                <div x-show="open === 'workflow'" x-collapse class="mt-3 text-gray-300 space-y-3">
+                    <p>一個高勝率的 SMC 交易劇本，是將高時間週期 (HTF) 的方向與低時間週期 (LTF) 的精準進場點結合。請遵循以下步驟：</p>
+                    <ol class="list-decimal list-inside space-y-2 pl-2">
+                        <li><strong>確立 HTF 方向 (Bias)</strong>: 先在日線或 4H 圖上判斷整體趨勢是偏多還是偏空。</li>
+                        <li><strong>尋找流動性掠奪</strong>: 等待市場主力掠奪一個關鍵高點 (BSL) 或低點 (SSL)，這是趨勢可能反轉的強烈信號。</li>
+                        <li><strong>等待結構轉變 (CHoCH)</strong>: 在流動性被掠奪後，等待 LTF 出現第一個反向的結構突破，即 CHoCH。這是確認市場反轉意圖的關鍵。</li>
+                        <li><strong>識別進場區域 (POI)</strong>: 在 CHoCH 發生後，尋找由這次反轉所創造出的、尚未被緩解的訂單塊 (OB)、突破塊 (Breaker) 或公平價值缺口 (FVG)。</li>
+                        <li><strong>規劃與執行交易</strong>: 等待價格回調至您識別出的 POI，設定好進場點、止損點（通常在 POI 區域的另一側），並根據風險管理計算倉位大小。</li>
                     </ol>
                 </div>
             </div>
+
+            <!-- 市場結構 (BOS vs CHoCH) -->
+            <div class="border-b border-gray-700 pb-4">
+                <button @click="open = open === 'structure' ? '' : 'structure'" class="w-full text-left">
+                    <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
+                        <span>市場結構 (BOS vs. CHoCH)</span>
+                        <span x-show="open !== 'structure'">&#9662;</span>
+                        <span x-show="open === 'structure'">&#9652;</span>
+                    </h3>
+                </button>
+                <div x-show="open === 'structure'" x-collapse class="mt-3 text-gray-300 space-y-2">
+                    <p>市場結構是判斷方向的基礎。本工具將其區分為兩種關鍵事件：</p>
+                    <ul class="list-disc list-inside space-y-1 pl-2">
+                        <li><strong class="text-blue-400">BOS (結構突破)</strong>: 全名 Break of Structure。當價格「順應」當前主要趨勢，並突破前一個波段高/低點時產生。這代表<strong class="text-green-400">趨勢正在健康地延續</strong>。</li>
+                        <li><strong class="text-yellow-400">CHoCH (結構轉變)</strong>: 全名 Change of Character。當價格「逆反」當前主要趨勢，並突破前一個波段高/低點時產生。這通常發生在流動性掠奪之後，是<strong class="text-red-400">趨勢可能即將反轉的早期信號</strong>。</li>
+                    </ul>
+                </div>
+            </div>
+
             <!-- 流動性掠奪 -->
-            <div class="border-b border-gray-700 pb-2">
+            <div class="border-b border-gray-700 pb-4">
                 <button @click="open = open === 'liquidity' ? '' : 'liquidity'" class="w-full text-left">
                     <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                        <span>1. 流動性掠奪 (BSL / SSL)</span>
+                        <span>流動性掠奪 (BSL / SSL)</span>
                         <span x-show="open !== 'liquidity'">&#9662;</span>
                         <span x-show="open === 'liquidity'">&#9652;</span>
                     </h3>
                 </button>
-                <div x-show="open === 'liquidity'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                    <p>這是最重要的「訊號」，告訴您市場趨勢可能即將反轉。</p>
-                    <ul class="list-disc list-inside space-y-1">
-                        <li><strong class="text-red-400">BSL (紅色向下箭頭)</strong>: 價格向上突破波段高點。看到此訊號，應開始尋找 <strong class="text-red-400">做空</strong> 的機會。</li>
-                        <li><strong class="text-green-400">SSL (綠色向上箭頭)</strong>: 價格向下跌破波段低點。看到此訊號，應開始尋找 <strong class="text-green-400">做多</strong> 的機會。</li>
+                <div x-show="open === 'liquidity'" x-collapse class="mt-3 text-gray-300 space-y-2">
+                    <p>這是最重要的「劇本啟動信號」，代表機構可能正在狩獵止損單。</p>
+                    <ul class="list-disc list-inside space-y-1 pl-2">
+                        <li><strong class="text-red-400">BSL (紅色向下箭頭)</strong>: Buy-side Liquidity。價格向上突破波段高點。看到此訊號，應開始警惕並尋找<strong class="text-red-400">做空</strong>的機會。</li>
+                        <li><strong class="text-green-400">SSL (綠色向上箭頭)</strong>: Sell-side Liquidity。價格向下跌破波段低點。看到此訊號，應開始警惕並尋找<strong class="text-green-400">做多</strong>的機會。</li>
                     </ul>
                 </div>
             </div>
-            <!-- ** 新增：CHoCH 說明 ** -->
-            <div class="border-b border-gray-700 pb-2">
-                <button @click="open = open === 'choch' ? '' : 'choch'" class="w-full text-left">
-                    <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                        <span>2. 趨勢轉變 (CHoCH)</span>
-                        <span x-show="open !== 'choch'">&#9662;</span>
-                        <span x-show="open === 'choch'">&#9652;</span>
-                    </h3>
-                </button>
-                <div x-show="open === 'choch'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                    <p>這是「早期預警」訊號，暗示趨勢可能正在改變，但尚未完全確認。</p>
-                     <ul class="list-disc list-inside space-y-1">
-                        <li><strong class="text-yellow-400">CHoCH (黃色虛線與標記)</strong>: 在流動性掠奪後，價格「第一次」反向突破了最近的一個小波段。</li>
-                        <li>它比 MSS 更早出現，但可靠性稍低。適合用來提醒自己需要開始密切關注市場變化。</li>
-                    </ul>
-                </div>
-            </div>
-            <!-- MSS 說明 -->
-            <div class="border-b border-gray-700 pb-2">
-                <button @click="open = open === 'mss' ? '' : 'mss'" class="w-full text-left">
-                    <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                        <span>3. 市場結構轉變 (MSS)</span>
-                        <span x-show="open !== 'mss'">&#9662;</span>
-                        <span x-show="open === 'mss'">&#9652;</span>
-                    </h3>
-                </button>
-                <div x-show="open === 'mss'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                    <p>這是「確認」訊號，代表市場的反轉意圖已非常明確。</p>
-                     <ul class="list-disc list-inside space-y-1">
-                        <li><strong class="text-blue-400">MSS (藍色虛線與標記)</strong>: 在流動性掠奪後，價格反向突破了前一個「主要」波段高/低點。</li>
-                        <li>這是交易策略的「綠燈」，只有在 MSS 確認後，才應該開始尋找下方的進場區。</li>
-                    </ul>
-                </div>
-            </div>
-            <!-- 訂單塊 -->
-            <div class="border-b border-gray-700 pb-2">
-                <button @click="open = open === 'ob' ? '' : 'ob'" class="w-full text-left">
+
+            <!-- 興趣點 (POI) -->
+            <div class="border-b border-gray-700 pb-4">
+                <button @click="open = open === 'poi' ? '' : 'poi'" class="w-full text-left">
                      <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                        <span>4. 訂單塊 (Order Block - 實線)</span>
-                        <span x-show="open !== 'ob'">&#9662;</span>
-                        <span x-show="open === 'ob'">&#9652;</span>
+                        <span>興趣點 (POI - 進場區域)</span>
+                        <span x-show="open !== 'poi'">&#9662;</span>
+                        <span x-show="open === 'poi'">&#9652;</span>
                     </h3>
                 </button>
-                <div x-show="open === 'ob'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                    <p>這是最理想的「進場區」之一，提供了絕佳的風險回報比。</p>
-                     <ul class="list-disc list-inside space-y-1">
-                        <li><strong class="text-red-400">看跌 OB (紅色實線)</strong>: 在價格大幅下跌前，最後一根上漲的 K 線。</li>
-                        <li><strong class="text-green-400">看漲 OB (綠色實線)</strong>: 在價格大幅上漲前，最後一根下跌的 K 線。</li>
+                <div x-show="open === 'poi'" x-collapse class="mt-3 text-gray-300 space-y-2">
+                    <p>在 CHoCH 確認後，以下是我們重點關注的、高勝率的進場區域：</p>
+                     <ul class="list-disc list-inside space-y-2 pl-2">
+                        <li><strong class="text-green-400">訂單塊 (OB - 實線)</strong>: 機構大量下單留下的區域。看漲 OB (綠色) 是潛在支撐，看跌 OB (紅色) 是潛在壓力。</li>
+                        <li><strong class="text-purple-400">突破塊 (Breaker - 紫色)</strong>: 一個被強力突破、角色互換的訂單塊。原本的支撐變為壓力，反之亦然。</li>
+                        <li><strong class="text-gray-400">公平價值缺口 (FVG - 虛線)</strong>: 價格快速移動留下的不平衡區，如同磁鐵般會吸引價格回來測試。</li>
                     </ul>
                 </div>
             </div>
-            <!-- ** 新增：Breaker Block 說明 ** -->
-            <div class="border-b border-gray-700 pb-2">
-                <button @click="open = open === 'breaker' ? '' : 'breaker'" class="w-full text-left">
-                     <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                        <span>5. 突破塊 (Breaker Block - 紫色)</span>
-                        <span x-show="open !== 'breaker'">&#9662;</span>
-                        <span x-show="open === 'breaker'">&#9652;</span>
-                    </h3>
-                </button>
-                <div x-show="open === 'breaker'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                    <p>這是一個「角色互換」的區域，原本的支撐區被跌破後，會轉變為壓力區（反之亦然）。</p>
-                     <ul class="list-disc list-inside space-y-1">
-                        <li><strong class="text-purple-400">看跌 Breaker (紫色實線)</strong>: 一個「看漲訂單塊」被價格向下跌破後形成，現在成為壓力區。</li>
-                        <li><strong class="text-purple-400">看漲 Breaker (紫色實線)</strong>: 一個「看跌訂單塊」被價格向上突破後形成，現在成為支撐區。</li>
-                    </ul>
-                </div>
-            </div>
-            <!-- FVG -->
-            <div class="border-b border-gray-700 pb-2">
-                <button @click="open = open === 'fvg' ? '' : 'fvg'" class="w-full text-left">
-                    <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                        <span>6. 公平價值缺口 (FVG - 虛線)</span>
-                        <span x-show="open !== 'fvg'">&#9662;</span>
-                        <span x-show="open === 'fvg'">&#9652;</span>
-                    </h3>
-                </button>
-                <div x-show="open === 'fvg'" x-collapse class="mt-2 text-gray-300 space-y-2">
-                   <p>這是價格的「磁鐵區」，價格會被吸引回來填補缺口。</p>
-                     <ul class="list-disc list-inside space-y-1">
-                        <li><strong class="text-red-400">看跌 FVG (紅色虛線)</strong>: 價格快速下跌時留下的真空地帶。</li>
-                        <li><strong class="text-green-400">看漲 FVG (綠色虛線)</strong>: 價格快速上漲時留下的真空地帶。</li>
-                        <li>當訂單塊 (OB) 和 FVG 重疊時，該區域的支撐或壓力會非常強大。</li>
-                    </ul>
-                </div>
-            </div>
-            <!-- 如何設定多空策略 (進階) -->
+
+            <!-- 風險管理 -->
             <div>
-                <button @click="open = open === 'advanced' ? '' : 'advanced'" class="w-full text-left">
+                <button @click="open = open === 'risk' ? '' : 'risk'" class="w-full text-left">
                      <h3 class="text-xl font-bold text-teal-400 flex justify-between items-center">
-                        <span>如何設定多空策略 (進階)</span>
-                        <span x-show="open !== 'advanced'">&#9662;</span>
-                        <span x-show="open === 'advanced'">&#9652;</span>
+                        <span>風險與倉位管理</span>
+                        <span x-show="open !== 'risk'">&#9662;</span>
+                        <span x-show="open === 'risk'">&#9652;</span>
                     </h3>
                 </button>
-                <div x-show="open === 'advanced'" x-collapse class="mt-2 text-gray-300 space-y-4">
-                    <div class="p-3 bg-yellow-900/50 text-yellow-200 rounded-lg text-sm">
-                        <strong>重要提醒：</strong>以下內容僅為策略教學範例，不構成任何投資建議。所有交易皆有風險，請務必做好個人研究與風險管理。
-                    </div>
-                    <div>
-                        <h4 class="text-lg font-semibold text-green-400">做多策略 (Long Position)</h4>
-                        <ul class="list-disc list-inside space-y-2 mt-2">
-                            <li><strong>進場點 (Entry):</strong> 當出現 <strong>SSL (綠色箭頭)</strong> 及後續的 <strong>CHoCH 或 MSS</strong> 後，等待價格回落至最近的<strong>綠色或紫色區域 (看漲 OB/Breaker/FVG)</strong>。可在此區域的上緣或中間位置設定限價單。</li>
-                            <li><strong>止損點 (Stop-Loss):</strong> 設定在您所依據的那個<strong>進場區域的最低點再稍低一點</strong>的位置。</li>
-                            <li><strong>止盈點 (Take-Profit):</strong> 目標可設為上方的波段高點、<strong>紅色或紫色區域 (看跌 OB/Breaker/FVG)</strong>，或是一個曾出現過 <strong>BSL (紅色箭頭)</strong> 的價位。</li>
+                <div x-show="open === 'risk'" x-collapse class="mt-3 text-gray-300 space-y-4">
+                    <div class="p-3 bg-gray-700 rounded-lg">
+                        <h4 class="font-semibold text-gray-100">動態倉位大小計算範例</h4>
+                        <p class="text-sm mt-1">專業的風險管理，是讓每筆交易的「虧損金額」固定，而不是「倉位大小」固定。</p>
+                        <ul class="list-decimal list-inside text-sm space-y-1 mt-2">
+                            <li>假設帳戶有 $10,000，設定單筆風險為 1%。</li>
+                            <li>您願意承擔的最大虧損 = $10,000 × 1% = <strong>$100</strong>。</li>
+                            <li>假設您計劃在 $500 進場，止損設在 $490，則每單位風險 = $10。</li>
+                            <li>您的倉位大小應為: $100 ÷ $10 = <strong>10 單位</strong>。</li>
                         </ul>
+                        <p class="text-xs text-gray-400 mt-2">本回測引擎已內建此動態計算邏輯。</p>
                     </div>
                     <div>
-                        <h4 class="text-lg font-semibold text-red-400">做空策略 (Short Position)</h4>
-                        <ul class="list-disc list-inside space-y-2 mt-2">
-                            <li><strong>進場點 (Entry):</strong> 當出現 <strong>BSL (紅色箭頭)</strong> 及後續的 <strong>CHoCH 或 MSS</strong> 後，等待價格反彈至最近的<strong>紅色或紫色區域 (看跌 OB/Breaker/FVG)</strong>。可在此區域的下緣或中間位置設定限價單。</li>
-                            <li><strong>止損點 (Stop-Loss):</strong> 設定在您所依據的那個<strong>進場區域的最高點再稍高一點</strong>的位置。</li>
-                            <li><strong>止盈點 (Take-Profit):</strong> 目標可設為下方的波段低點、<strong>綠色或紫色區域 (看漲 OB/Breaker/FVG)</strong>，或是一個曾出現過 <strong>SSL (綠色箭頭)</strong> 的價位。</li>
+                        <h4 class="font-semibold text-gray-100">重要提醒</h4>
+                        <ul class="list-disc list-inside text-sm space-y-1 mt-2 pl-2">
+                            <li>始終將止損點設在能讓您的「交易邏輯失效」的位置（例如 POI 區域之外）。</li>
+                            <li>避免在重大新聞或財報公佈前後進行交易。</li>
+                            <li>本工具僅為分析輔助，所有交易決策與風險皆由您個人負責。</li>
                         </ul>
                     </div>
                 </div>

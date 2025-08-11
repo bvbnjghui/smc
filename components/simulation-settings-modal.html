@@ -8,11 +8,30 @@
             </button>
         </div>
         <div class="overflow-y-auto space-y-4 pr-2">
+            <!-- ** 新增: HTF 偏好設定 ** -->
+            <div class="space-y-2">
+                <div class="flex items-center space-x-2">
+                    <label for="htfBias" class="text-sm text-gray-400">HTF 偏好 (Bias):</label>
+                    <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
+                        <button x-ref="infoBtnBias" type="button" class="text-gray-500 hover:text-gray-300">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                        </button>
+                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtnBias" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
+                            設定高時間週期的主要交易方向。模擬器將只尋找符合此偏好的交易機會。
+                        </div>
+                    </div>
+                </div>
+                <select id="htfBias" x-model="htfBias" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-50">
+                    <option value="both">多空皆可 (Both)</option>
+                    <option value="long_only">僅做多 (Long Only)</option>
+                    <option value="short_only">僅做空 (Short Only)</option>
+                </select>
+            </div>
+
             <!-- 初始金額 -->
             <div class="space-y-2">
                 <div class="flex items-center space-x-2">
                     <label for="investmentAmount" class="text-sm text-gray-400">初始金額 ($):</label>
-                    <!-- ** 修改：修正 tooltip 閃爍問題 ** -->
                     <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
                         <button x-ref="infoBtn1" type="button" class="text-gray-500 hover:text-gray-300">
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
@@ -27,47 +46,17 @@
             <!-- 單一訊號風險 -->
             <div class="space-y-2">
                 <div class="flex items-center space-x-2">
-                    <label for="riskPerTrade" class="text-sm text-gray-400">單一訊號風險 (%):</label>
+                    <label for="riskPerTrade" class="text-sm text-gray-400">單筆風險 (%):</label>
                     <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
                         <button x-ref="infoBtn2" type="button" class="text-gray-500 hover:text-gray-300">
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
                         </button>
                         <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtn2" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
-                            當交易機會由「單一」流動性掠奪事件觸發時，您願意為這筆交易承擔的資金風險百分比。例如：1% 代表單筆交易最多虧損初始金額的 1%。
+                            您願意為每一筆交易承擔的資金風險百分比。例如：1% 代表單筆交易最多虧損當前帳戶權益的 1%。
                         </div>
                     </div>
                 </div>
                 <input type="number" id="riskPerTrade" x-model.number="riskPerTrade" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-50">
-            </div>
-            <!-- 雙重訊號風險 -->
-            <div class="space-y-2">
-                <div class="flex items-center space-x-2">
-                    <label for="riskMultiGrab2" class="text-sm text-gray-400">雙重訊號風險 (%):</label>
-                    <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
-                        <button x-ref="infoBtn3" type="button" class="text-gray-500 hover:text-gray-300">
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
-                        </button>
-                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtn3" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
-                            當交易機會由「兩個」連續的流動性掠奪事件觸發時，您願意承擔的風險百分比。通常可以設定得比單一訊號稍高。
-                        </div>
-                    </div>
-                </div>
-                <input type="number" id="riskMultiGrab2" x-model.number="riskMultiGrab2" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-50">
-            </div>
-            <!-- 多重(3+)訊號風險 -->
-            <div class="space-y-2">
-                <div class="flex items-center space-x-2">
-                    <label for="riskMultiGrab3plus" class="text-sm text-gray-400">多重(3+)訊號風險 (%):</label>
-                    <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
-                        <button x-ref="infoBtn4" type="button" class="text-gray-500 hover:text-gray-300">
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
-                        </button>
-                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtn4" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
-                            當交易機會由「三個或以上」連續的流動性掠奪事件觸發時，您願意承擔的風險百分比。這代表市場意圖非常強烈，可以設定較高的風險。
-                        </div>
-                    </div>
-                </div>
-                <input type="number" id="riskMultiGrab3plus" x-model.number="riskMultiGrab3plus" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-50">
             </div>
             <!-- 風險回報比 -->
             <div class="space-y-2">

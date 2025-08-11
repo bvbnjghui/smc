@@ -51,7 +51,7 @@ const appComponent = () => {
             commonSymbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
             interval: '15m',
             showLiquidity: true,
-            showMSS: true,
+            showBOS: true,
             showCHoCH: true,
             showOrderBlocks: true,
             showBreakerBlocks: true,
@@ -61,17 +61,18 @@ const appComponent = () => {
             isBacktestMode: false,
             backtestStartDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
             backtestEndDate: new Date().toISOString().split('T')[0],
+            htfBias: 'both',
             investmentAmount: 10000,
             riskPerTrade: 1,
-            riskMultiGrab2: 1.5,
-            riskMultiGrab3plus: 2,
             rrRatio: 2,
             setupExpirationCandles: 30,
             enableTrendFilter: false,
             emaPeriod: 50,
-            // ** 新增：MTA 預設值 **
             enableMTA: false,
             higherTimeframe: '4h',
+            // ** 新增: 市場調整預設值 **
+            marketType: 'crypto',
+            volatilityAdjustment: 1.2,
         };
 
         try {
@@ -116,7 +117,7 @@ const appComponent = () => {
 
         // --- 圖表顯示設定 ---
         showLiquidity: initialSettings.showLiquidity,
-        showMSS: initialSettings.showMSS,
+        showBOS: initialSettings.showBOS,
         showCHoCH: initialSettings.showCHoCH,
         showOrderBlocks: initialSettings.showOrderBlocks,
         showBreakerBlocks: initialSettings.showBreakerBlocks,
@@ -126,7 +127,6 @@ const appComponent = () => {
         visibleRange: null,
         enableTrendFilter: initialSettings.enableTrendFilter,
         emaPeriod: initialSettings.emaPeriod,
-        // ** 新增：MTA 狀態 **
         enableMTA: initialSettings.enableMTA,
         higherTimeframe: initialSettings.higherTimeframe,
         higherTimeframeCandles: [],
@@ -135,10 +135,9 @@ const appComponent = () => {
         isBacktestMode: initialSettings.isBacktestMode,
         backtestStartDate: initialSettings.backtestStartDate,
         backtestEndDate: initialSettings.backtestEndDate,
+        htfBias: initialSettings.htfBias,
         investmentAmount: initialSettings.investmentAmount,
         riskPerTrade: initialSettings.riskPerTrade,
-        riskMultiGrab2: initialSettings.riskMultiGrab2,
-        riskMultiGrab3plus: initialSettings.riskMultiGrab3plus,
         rrRatio: initialSettings.rrRatio,
         setupExpirationCandles: initialSettings.setupExpirationCandles,
         isSimulating: false,
@@ -146,7 +145,10 @@ const appComponent = () => {
         isSimulationModalOpen: false,
         isSimulationSettingsModalOpen: false,
 
-        // ** 新增：計算可用的高時間週期選項 **
+        // ** 新增: 市場調整狀態 **
+        marketType: initialSettings.marketType,
+        volatilityAdjustment: initialSettings.volatilityAdjustment,
+
         get availableHigherTimeframes() {
             const currentIndex = this.intervals.findIndex(i => i.value === this.interval);
             return this.intervals.slice(currentIndex + 1);
@@ -157,11 +159,13 @@ const appComponent = () => {
             setupChart('chart', this.onVisibleRangeChanged.bind(this));
             this.fetchData();
 
+            // ** 新增: 監聽市場調整參數 **
             const settingsToWatch = [
-                'symbol', 'commonSymbols', 'interval', 'showLiquidity', 'showMSS', 'showCHoCH', 'showOrderBlocks', 'showBreakerBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
-                'isBacktestMode', 'backtestStartDate', 'backtestEndDate', 'investmentAmount',
-                'riskPerTrade', 'riskMultiGrab2', 'riskMultiGrab3plus', 'rrRatio', 'setupExpirationCandles',
-                'enableTrendFilter', 'emaPeriod', 'enableMTA', 'higherTimeframe'
+                'symbol', 'commonSymbols', 'interval', 'showLiquidity', 'showBOS', 'showCHoCH', 'showOrderBlocks', 'showBreakerBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
+                'isBacktestMode', 'backtestStartDate', 'backtestEndDate', 'htfBias', 'investmentAmount',
+                'riskPerTrade', 'rrRatio', 'setupExpirationCandles',
+                'enableTrendFilter', 'emaPeriod', 'enableMTA', 'higherTimeframe',
+                'marketType', 'volatilityAdjustment'
             ];
             settingsToWatch.forEach(setting => {
                 this.$watch(setting, (newValue, oldValue) => {
@@ -175,28 +179,37 @@ const appComponent = () => {
                 if (!newValue) this.stopAutoUpdate();
             });
             
-            // ** 新增：當 LTF 改變時，確保 HTF 仍然有效 **
             this.$watch('interval', () => {
                 if (!this.availableHigherTimeframes.find(i => i.value === this.higherTimeframe)) {
                     this.higherTimeframe = this.availableHigherTimeframes[0]?.value || '';
                 }
             });
+
+            // ** 新增: 根據市場類型自動調整建議的波動率乘數 **
+            this.$watch('marketType', (newType) => {
+                if (newType === 'crypto') {
+                    this.volatilityAdjustment = 1.2;
+                } else {
+                    this.volatilityAdjustment = 1.0;
+                }
+            });
         },
 
         saveSettings() {
+            // ** 新增: 保存市場調整參數 **
             const settings = {
                 symbol: this.symbol, commonSymbols: this.commonSymbols,
                 interval: this.interval, showLiquidity: this.showLiquidity,
-                showMSS: this.showMSS, showCHoCH: this.showCHoCH, showOrderBlocks: this.showOrderBlocks,
+                showBOS: this.showBOS, showCHoCH: this.showCHoCH, showOrderBlocks: this.showOrderBlocks,
                 showBreakerBlocks: this.showBreakerBlocks, showFVGs: this.showFVGs,
                 showMitigated: this.showMitigated, analyzeVisibleRangeOnly: this.analyzeVisibleRangeOnly,
                 isBacktestMode: this.isBacktestMode, backtestStartDate: this.backtestStartDate,
-                backtestEndDate: this.backtestEndDate, investmentAmount: this.investmentAmount,
-                riskPerTrade: this.riskPerTrade, riskMultiGrab2: this.riskMultiGrab2,
-                riskMultiGrab3plus: this.riskMultiGrab3plus, rrRatio: this.rrRatio,
+                backtestEndDate: this.backtestEndDate, htfBias: this.htfBias, investmentAmount: this.investmentAmount,
+                riskPerTrade: this.riskPerTrade, rrRatio: this.rrRatio,
                 setupExpirationCandles: this.setupExpirationCandles,
                 enableTrendFilter: this.enableTrendFilter, emaPeriod: this.emaPeriod,
                 enableMTA: this.enableMTA, higherTimeframe: this.higherTimeframe,
+                marketType: this.marketType, volatilityAdjustment: this.volatilityAdjustment,
             };
             localStorage.setItem('smcAnalyzerSettings', JSON.stringify(settings));
         },
@@ -227,7 +240,6 @@ const appComponent = () => {
             this.isLoading = true;
             this.error = '';
             try {
-                // ** 修改：同時獲取 LTF 和 HTF 數據 **
                 const ltfParams = {
                     symbol: this.symbol, interval: this.interval, isBacktestMode: this.isBacktestMode,
                     backtestStartDate: this.backtestStartDate, backtestEndDate: this.backtestEndDate,
@@ -279,17 +291,20 @@ const appComponent = () => {
                 analyses.ema = calculateEMA(this.currentCandles, this.emaPeriod);
             }
             
-            // ** 新增：如果啟用 MTA，則分析 HTF 數據 **
             let htfAnalyses = null;
             if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
                 htfAnalyses = analyzeAll(this.higherTimeframeCandles, { enableTrendFilter: false });
             }
             
             const displaySettings = {
-                showLiquidity: this.showLiquidity, showMSS: this.showMSS,
-                showCHoCH: this.showCHoCH, showOrderBlocks: this.showOrderBlocks,
-                showBreakerBlocks: this.showBreakerBlocks, showFVGs: this.showFVGs,
-                showMitigated: this.showMitigated, enableTrendFilter: this.enableTrendFilter,
+                showLiquidity: this.showLiquidity, 
+                showBOS: this.showBOS,
+                showCHoCH: this.showCHoCH, 
+                showOrderBlocks: this.showOrderBlocks,
+                showBreakerBlocks: this.showBreakerBlocks, 
+                showFVGs: this.showFVGs,
+                showMitigated: this.showMitigated, 
+                enableTrendFilter: this.enableTrendFilter,
             };
             
             redrawAllAnalyses(analyses, displaySettings, htfAnalyses);
@@ -304,7 +319,6 @@ const appComponent = () => {
             this.isSimulating = true;
             setTimeout(() => {
                 try {
-                    // ** 新增：為回測準備 HTF 分析數據 **
                     let htfAnalyses = null;
                     if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
                         htfAnalyses = analyzeAll(this.higherTimeframeCandles);
@@ -313,14 +327,18 @@ const appComponent = () => {
                     const backtestParams = {
                         candles: this.currentCandles,
                         settings: {
-                            investmentAmount: this.investmentAmount, riskPerTrade: this.riskPerTrade,
-                            riskMultiGrab2: this.riskMultiGrab2, riskMultiGrab3plus: this.riskMultiGrab3plus,
+                            investmentAmount: this.investmentAmount, 
+                            riskPerTrade: this.riskPerTrade,
                             rrRatio: this.rrRatio,
                             setupExpirationCandles: this.setupExpirationCandles,
                             enableTrendFilter: this.enableTrendFilter,
                             emaPeriod: this.emaPeriod,
                             enableMTA: this.enableMTA,
+                            htfBias: this.htfBias,
+                            // ** 新增: 傳遞市場調整參數 **
+                            volatilityAdjustment: this.volatilityAdjustment,
                         },
+                        analyses: analyzeAll(this.currentCandles, { enableTrendFilter: this.enableTrendFilter, emaPeriod: this.emaPeriod }),
                         htfAnalyses: htfAnalyses,
                     };
                     this.simulationResults = runBacktestSimulation(backtestParams);

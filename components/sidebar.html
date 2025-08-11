@@ -91,17 +91,17 @@
                     </div>
                 </div>
                 <div class="flex items-center justify-between text-gray-400">
+                    <span>結構突破 (BOS)</span>
+                    <div class="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="showBOS" x-model="showBOS" @change="redrawChartAnalyses()" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                        <label for="showBOS" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-gray-400">
                     <span>趨勢轉變 (CHoCH)</span>
                     <div class="relative inline-block w-10 align-middle select-none">
                         <input type="checkbox" id="showCHoCH" x-model="showCHoCH" @change="redrawChartAnalyses()" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
                         <label for="showCHoCH" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
-                    </div>
-                </div>
-                <div class="flex items-center justify-between text-gray-400">
-                    <span>市場結構轉變 (MSS)</span>
-                    <div class="relative inline-block w-10 align-middle select-none">
-                        <input type="checkbox" id="showMSS" x-model="showMSS" @change="redrawChartAnalyses()" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
-                        <label for="showMSS" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
                     </div>
                 </div>
                 <div class="flex items-center justify-between text-gray-400">
@@ -157,7 +157,7 @@
                 </div>
             </div>
             
-            <!-- ** 新增：多時間週期分析 (MTA) ** -->
+            <!-- 多時間週期分析 (MTA) -->
             <div class="space-y-4 pt-4 border-t border-gray-700">
                 <h3 class="text-lg font-semibold text-gray-300">多時間週期分析 (MTA)</h3>
                 <div class="flex items-center justify-between text-gray-400">
@@ -174,6 +174,32 @@
                             <option :value="option.value" x-text="option.label"></option>
                         </template>
                     </select>
+                </div>
+            </div>
+            
+            <!-- ** 新增: 市場特性調整 ** -->
+            <div class="space-y-4 pt-4 border-t border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-300">市場特性調整</h3>
+                <div class="space-y-2">
+                    <label for="marketType" class="text-sm text-gray-400">市場類型:</label>
+                    <select id="marketType" x-model="marketType" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                        <option value="crypto">加密貨幣 (高波動)</option>
+                        <option value="stocks">股票 (標準波動)</option>
+                    </select>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex items-center space-x-2">
+                        <label for="volatilityAdjustment" class="text-sm text-gray-400">波動率調整 (SL 乘數):</label>
+                        <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
+                            <button x-ref="infoBtnVol" type="button" class="text-gray-500 hover:text-gray-300">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                            </button>
+                            <div x-show="tooltipVisible" x-anchor.bottom.offset.4="$refs.infoBtnVol" x-transition class="absolute w-56 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
+                                用於調整止損 (Stop-Loss) 的寬度。大於 1 會放寬止損，小於 1 會收緊。建議高波動市場使用較大值。
+                            </div>
+                        </div>
+                    </div>
+                    <input type="number" id="volatilityAdjustment" x-model.number="volatilityAdjustment" step="0.1" min="0.1" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
                 </div>
             </div>
 

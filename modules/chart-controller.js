@@ -139,7 +139,6 @@ function drawHtfZone(price1, price2, color, title) {
     const topLine = candleSeries.createPriceLine({ ...lineOptions, price: price1 });
     const bottomLine = candleSeries.createPriceLine({ ...lineOptions, price: price2 });
     
-    // ** 修正：移除不穩定的背景繪製邏輯 **
     priceLines.push(topLine, bottomLine);
 }
 
@@ -149,7 +148,8 @@ export function redrawAllAnalyses(analyses, settings, htfAnalyses = null) {
 
     clearDrawings();
 
-    const { showLiquidity, showMSS, showCHoCH, showOrderBlocks, showBreakerBlocks, showFVGs, showMitigated, enableTrendFilter } = settings;
+    // ** 修改: 取得 showBOS 設置 **
+    const { showLiquidity, showBOS, showCHoCH, showOrderBlocks, showBreakerBlocks, showFVGs, showMitigated, enableTrendFilter } = settings;
 
     if (enableTrendFilter && analyses.ema && emaSeries) {
         const validEmaData = analyses.ema.filter(d => d.value !== undefined);
@@ -190,16 +190,21 @@ export function redrawAllAnalyses(analyses, settings, htfAnalyses = null) {
             });
         }
     }
-    if (showCHoCH && analyses.choch) {
-         analyses.choch.forEach(choch => {
-            drawZone(choch.price, choch.price, 'rgba(245, 158, 11, 0.8)', 'CHoCH', LightweightCharts.LineStyle.Dotted, 2);
-            markers.push(choch.marker);
+    
+    // ** 新增: 繪製 BOS 事件 **
+    if (showBOS && analyses.bosEvents) {
+         analyses.bosEvents.forEach(bos => {
+            const color = bos.marker.position === 'belowBar' ? 'rgba(59, 130, 246, 0.9)' : 'rgba(239, 68, 68, 0.9)'; // 藍色代表看漲，紅色代表看跌
+            drawZone(bos.price, bos.price, color, 'BOS', LightweightCharts.LineStyle.Dotted, 2);
+            markers.push(bos.marker);
         });
     }
-    if (showMSS && analyses.mss) {
-         analyses.mss.forEach(mss => {
-            drawZone(mss.price, mss.price, 'rgba(59, 130, 246, 0.8)', 'MSS', LightweightCharts.LineStyle.Dotted, 2);
-            markers.push(mss.marker);
+
+    // ** 修改: 只繪製 CHoCH 事件 **
+    if (showCHoCH && analyses.chochEvents) {
+         analyses.chochEvents.forEach(choch => {
+            drawZone(choch.price, choch.price, 'rgba(245, 158, 11, 0.9)', 'CHoCH', LightweightCharts.LineStyle.Dotted, 2);
+            markers.push(choch.marker);
         });
     }
 
