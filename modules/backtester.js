@@ -51,17 +51,17 @@ export function runBacktestSimulation(params) {
         emaPeriod,
         enableMTA,
         htfBias,
-        // ** 新增: 解構出波動率調整參數 **
-        volatilityAdjustment
+        enableATR,
+        atrMultiplier
     } = settings;
 
-    console.log("--- 開始策略回測模擬 (MTA Enabled: " + enableMTA + ", Bias: " + htfBias + ") ---");
+    console.log("--- 開始策略回測模擬 (ATR Enabled: " + enableATR + ", Bias: " + htfBias + ") ---");
     console.log("初始設定:", settings);
 
     let equity = investmentAmount;
     const trades = [];
     
-    const { liquidityGrabs, chochEvents, orderBlocks, fvgs, breakerBlocks, ema } = analyses;
+    const { liquidityGrabs, chochEvents, orderBlocks, fvgs, breakerBlocks, ema, atr } = analyses;
 
     let activeTrade = null;
     let setup = null; 
@@ -77,6 +77,7 @@ export function runBacktestSimulation(params) {
 
             if (activeTrade.direction === 'LONG') {
                 if (candle.low <= activeTrade.stopLoss) { exitPrice = activeTrade.stopLoss; exitReason = 'StopLoss'; }
+                // ** 修正: 將 active.takeProfit 改為 activeTrade.takeProfit **
                 else if (candle.high >= activeTrade.takeProfit) { exitPrice = activeTrade.takeProfit; exitReason = 'TakeProfit'; }
             } else { // SHORT
                 if (candle.high >= activeTrade.stopLoss) { exitPrice = activeTrade.stopLoss; exitReason = 'StopLoss'; }
@@ -88,18 +89,16 @@ export function runBacktestSimulation(params) {
                 equity += pnl;
                 trades.push({ ...activeTrade, exitPrice, exitTime: candle.time, pnl, exitReason });
                 activeTrade = null;
-                setup = null; // 交易結束，清除設定
+                setup = null; 
             }
         }
 
-        if (activeTrade) continue; // 如果仍在交易中，跳過尋找新設定的邏輯
+        if (activeTrade) continue; 
 
         // 處理等待中的交易設定
         if (setup) {
-            // 檢查設定是否過期或失效
             if (i > setup.creationIndex + setupExpirationCandles) { setup = null; }
             else if ((setup.direction === 'LONG' && candle.low <= setup.protectionPoint) || (setup.direction === 'SHORT' && candle.high >= setup.protectionPoint)) { setup = null; }
-            // 檢查是否觸發進場
             else if (setup.state === 'WAITING_FOR_ENTRY') {
                 let entryPrice = null;
                 if (setup.direction === 'LONG' && candle.low <= setup.poi.top) { entryPrice = setup.poi.top; }
@@ -108,14 +107,15 @@ export function runBacktestSimulation(params) {
                 if (entryPrice) {
                     const riskPercent = riskPerTrade;
                     
-                    // ** 核心修改: 根據波動率調整止損位置 **
-                    const initialStopLoss = setup.direction === 'LONG' ? setup.poi.bottom : setup.poi.top;
-                    const initialRiskDistance = Math.abs(entryPrice - initialStopLoss);
-                    
-                    // 應用波動率乘數來計算調整後的止損點
-                    const stopLoss = setup.direction === 'LONG' 
-                        ? entryPrice - (initialRiskDistance * volatilityAdjustment) 
-                        : entryPrice + (initialRiskDistance * volatilityAdjustment);
+                    let stopLoss;
+                    if (enableATR && atr[i] && atr[i].value) {
+                        const atrValue = atr[i].value;
+                        stopLoss = setup.direction === 'LONG' 
+                            ? entryPrice - (atrValue * atrMultiplier)
+                            : entryPrice + (atrValue * atrMultiplier);
+                    } else {
+                        stopLoss = setup.direction === 'LONG' ? setup.poi.bottom : setup.poi.top;
+                    }
                     
                     const riskPerUnit = Math.abs(entryPrice - stopLoss);
                     
@@ -128,7 +128,7 @@ export function runBacktestSimulation(params) {
                             direction: setup.direction, entryTime: candle.time, entryPrice,
                             stopLoss, takeProfit, size, setupType: setup.type,
                         };
-                        setup = null; // 進場成功，清除設定
+                        setup = null; 
                     }
                 }
             }
@@ -143,19 +143,18 @@ export function runBacktestSimulation(params) {
                 const direction = confirmationSignal.marker.position === 'belowBar' ? 'LONG' : 'SHORT';
 
                 if ((htfBias === 'long_only' && direction === 'SHORT') || (htfBias === 'short_only' && direction === 'LONG')) {
-                    continue; // 如果訊號方向與偏好不符，則跳過
+                    continue; 
                 }
 
-                // 整合 MTA 和 EMA 過濾器
                 if (enableTrendFilter && ema[signalCandleIndex]?.value) {
                     if ((direction === 'LONG' && candle.close < ema[signalCandleIndex].value) || (direction === 'SHORT' && candle.close > ema[signalCandleIndex].value)) {
-                        continue; // EMA 逆勢，跳過
+                        continue; 
                     }
                 }
                 
                 if (enableMTA) {
                     if (!isInsideHtfPoi(candle, direction, htfAnalyses)) {
-                        continue; // 不在 HTF POI 內，跳過
+                        continue; 
                     }
                      console.log(`%c[${candleTime}] MTA Confirmed: 價格進入 HTF POI`, 'color: #a78bfa;');
                 }
@@ -164,7 +163,6 @@ export function runBacktestSimulation(params) {
                 const poi = findNearestPOI(signalCandleIndex, poiDirection, orderBlocks, fvgs, breakerBlocks);
 
                 if (poi) {
-                    // 尋找觸發此 CHoCH 的流動性掠奪事件
                     const grabCandleTime = Object.keys(liquidityGrabs).reverse().find(time => Number(time) < candle.time && liquidityGrabs[time].some(g => (direction === 'LONG' ? g.text === 'SSL' : g.text === 'BSL')));
                     if (grabCandleTime) {
                         const grabCandle = candles.find(c => c.time === Number(grabCandleTime));

@@ -6,6 +6,45 @@
  */
 
 /**
+ * **新增**: 計算並匯出平均真實波幅 (ATR)。
+ * @param {object[]} candles - K 線數據陣列。
+ * @param {number} period - ATR 的計算週期。
+ * @returns {object[]} ATR 數據陣列。
+ */
+export function calculateATR(candles, period) {
+    const atrValues = [];
+    if (candles.length < period) return atrValues;
+
+    let previousAtr = 0;
+    for (let i = 0; i < candles.length; i++) {
+        const candle = candles[i];
+        const prevCandle = i > 0 ? candles[i - 1] : null;
+
+        const highLow = candle.high - candle.low;
+        const highPrevClose = prevCandle ? Math.abs(candle.high - prevCandle.close) : highLow;
+        const lowPrevClose = prevCandle ? Math.abs(candle.low - prevCandle.close) : highLow;
+        
+        const trueRange = Math.max(highLow, highPrevClose, lowPrevClose);
+
+        if (i < period) {
+            previousAtr += trueRange;
+            if (i === period - 1) {
+                previousAtr /= period;
+                atrValues.push({ time: candle.time, value: previousAtr });
+            } else {
+                atrValues.push({ time: candle.time, value: undefined });
+            }
+        } else {
+            const currentAtr = (previousAtr * (period - 1) + trueRange) / period;
+            atrValues.push({ time: candle.time, value: currentAtr });
+            previousAtr = currentAtr;
+        }
+    }
+    return atrValues;
+}
+
+
+/**
  * 計算並匯出指數移動平均線 (EMA)。
  * @param {object[]} candles - K 線數據陣列。
  * @param {number} period - EMA 的計算週期。
@@ -47,16 +86,13 @@ export function calculateEMA(candles, period) {
 function analyzeAndGetSwingPoints(candles) {
     const swingHighs = [];
     const swingLows = [];
-    // 從第 2 根 K 線開始，到倒數第 2 根結束，以確保左右都有比較對象
     for (let i = 1; i < candles.length - 1; i++) {
         const prev = candles[i - 1];
         const current = candles[i];
         const next = candles[i + 1];
-        // 標準的三根 K 線波段高點
         if (current.high > prev.high && current.high > next.high) {
             swingHighs.push({ index: i, price: current.high, time: current.time });
         }
-        // 標準的三根 K 線波段低點
         if (current.low < prev.low && current.low < next.low) {
             swingLows.push({ index: i, price: current.low, time: current.time });
         }
@@ -65,7 +101,7 @@ function analyzeAndGetSwingPoints(candles) {
 }
 
 /**
- * **新增**: 根據波段點判斷市場結構 (BOS/CHoCH)。
+ * 根據波段點判斷市場結構 (BOS/CHoCH)。
  * @param {object[]} candles - K 線數據陣列。
  * @param {{swingHighs: object[], swingLows: object[]}} swingPoints - 波段高低點物件。
  * @returns {{bosEvents: object[], chochEvents: object[]}} 市場結構事件。
@@ -75,72 +111,59 @@ function analyzeMarketStructure(candles, swingPoints) {
     const chochEvents = [];
     const { swingHighs, swingLows } = swingPoints;
 
-    // 我們需要至少兩個高點和兩個低點來判斷初始趨勢
     if (swingHighs.length < 2 || swingLows.length < 2) {
         return { bosEvents, chochEvents };
     }
 
-    let lastHigh = swingHighs[0];
-    let lastLow = swingLows[0];
     let majorTrend = 'undetermined';
 
-    // 確定初始主要趨勢
     if (swingHighs[1].price > swingHighs[0].price && swingLows[1].price > swingLows[0].price) {
         majorTrend = 'bullish';
     } else if (swingHighs[1].price < swingHighs[0].price && swingLows[1].price < swingLows[0].price) {
         majorTrend = 'bearish';
     }
 
-    // 遍歷所有 K 線，檢查結構突破
     for (let i = 1; i < candles.length; i++) {
         const candle = candles[i];
 
-        // 尋找價格突破的 swing points
         const brokenHighs = swingHighs.filter(sh => sh.index < i && candle.close > sh.price && !sh.broken);
         const brokenLows = swingLows.filter(sl => sl.index < i && candle.close < sl.price && !sl.broken);
 
         if (brokenHighs.length > 0) {
             const lastBrokenHigh = brokenHighs[brokenHighs.length - 1];
             if (majorTrend === 'bullish') {
-                // 在多頭趨勢中向上突破 -> BOS
                 bosEvents.push({
                     price: lastBrokenHigh.price,
                     marker: { time: candle.time, position: 'belowBar', color: '#2563eb', shape: 'circle', text: 'BOS' }
                 });
             } else {
-                // 在空頭趨勢中向上突破 -> CHoCH
                 chochEvents.push({
                     price: lastBrokenHigh.price,
                     marker: { time: candle.time, position: 'belowBar', color: '#f59e0b', shape: 'circle', text: 'CHoCH' }
                 });
-                majorTrend = 'bullish'; // 趨勢可能反轉
+                majorTrend = 'bullish'; 
             }
-            // 標記為已突破，避免重複計算
             swingHighs.forEach(sh => { if(brokenHighs.includes(sh)) sh.broken = true; });
         }
 
         if (brokenLows.length > 0) {
             const lastBrokenLow = brokenLows[brokenLows.length - 1];
              if (majorTrend === 'bearish') {
-                // 在空頭趨勢中向下突破 -> BOS
                 bosEvents.push({
                     price: lastBrokenLow.price,
                     marker: { time: candle.time, position: 'aboveBar', color: '#ef4444', shape: 'circle', text: 'BOS' }
                 });
             } else {
-                // 在多頭趨勢中向下突破 -> CHoCH
                 chochEvents.push({
                     price: lastBrokenLow.price,
                     marker: { time: candle.time, position: 'aboveBar', color: '#f59e0b', shape: 'circle', text: 'CHoCH' }
                 });
-                majorTrend = 'bearish'; // 趨勢可能反轉
+                majorTrend = 'bearish'; 
             }
-            // 標記為已突破，避免重複計算
             swingLows.forEach(sl => { if(brokenLows.includes(sl)) sl.broken = true; });
         }
     }
     
-    // 去除重複事件
     const uniqueBos = bosEvents.filter((v,i,a)=>a.findIndex(t=>(t.price === v.price && t.marker.time===v.marker.time))===i);
     const uniqueChoch = chochEvents.filter((v,i,a)=>a.findIndex(t=>(t.price === v.price && t.marker.time===v.marker.time))===i);
 
@@ -286,18 +309,20 @@ function analyzeAndGetBreakerBlocks(orderBlocks) {
  * @returns {object} 包含所有分析結果的物件。
  */
 export function analyzeAll(candles, settings = {}) {
-    const { enableTrendFilter, emaPeriod } = settings;
+    // ** 新增: 解構出 ATR 相關設定 **
+    const { enableTrendFilter, emaPeriod, enableATR, atrPeriod } = settings;
 
     if (!candles || candles.length < 3) {
-        return { swingPoints: { swingHighs: [], swingLows: [] }, liquidityGrabs: {}, bosEvents: [], chochEvents: [], orderBlocks: [], fvgs: [], breakerBlocks: [], ema: [] };
+        return { swingPoints: { swingHighs: [], swingLows: [] }, liquidityGrabs: {}, bosEvents: [], chochEvents: [], orderBlocks: [], fvgs: [], breakerBlocks: [], ema: [], atr: [] };
     }
     
-    // 建立一個 K 線數據的深拷貝，用於分析，以避免汙染原始數據
     const analyzableCandles = JSON.parse(JSON.stringify(candles));
     const swingPoints = analyzeAndGetSwingPoints(analyzableCandles);
     const { bosEvents, chochEvents } = analyzeMarketStructure(analyzableCandles, swingPoints);
     const orderBlocks = analyzeAndGetOrderBlocks(analyzableCandles);
     const ema = enableTrendFilter ? calculateEMA(analyzableCandles, emaPeriod) : [];
+    // ** 新增: 計算 ATR **
+    const atr = enableATR ? calculateATR(analyzableCandles, atrPeriod) : [];
 
     return {
         swingPoints,
@@ -308,6 +333,7 @@ export function analyzeAll(candles, settings = {}) {
         fvgs: analyzeAndGetFVGs(analyzableCandles),
         breakerBlocks: analyzeAndGetBreakerBlocks(orderBlocks),
         ema,
+        atr, // ** 新增: 回傳 ATR 結果 **
     };
 }
 

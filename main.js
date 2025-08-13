@@ -11,7 +11,7 @@ import anchor from 'https://unpkg.com/@alpinejs/anchor@3.x.x/dist/module.esm.js'
 
 import { fetchKlines } from './modules/api.js';
 import { setupChart, updateChartData, fitChart, redrawAllAnalyses } from './modules/chart-controller.js';
-import { analyzeAll, calculateEMA } from './modules/smc-analyzer.js';
+import { analyzeAll, calculateEMA, calculateATR } from './modules/smc-analyzer.js';
 import { runBacktestSimulation } from './modules/backtester.js';
 
 async function loadComponent(componentName, containerId) {
@@ -70,9 +70,10 @@ const appComponent = () => {
             emaPeriod: 50,
             enableMTA: false,
             higherTimeframe: '4h',
-            // ** 新增: 市場調整預設值 **
-            marketType: 'crypto',
-            volatilityAdjustment: 1.2,
+            // ** 新增: ATR 預設值 **
+            enableATR: true,
+            atrPeriod: 14,
+            atrMultiplier: 2,
         };
 
         try {
@@ -145,9 +146,10 @@ const appComponent = () => {
         isSimulationModalOpen: false,
         isSimulationSettingsModalOpen: false,
 
-        // ** 新增: 市場調整狀態 **
-        marketType: initialSettings.marketType,
-        volatilityAdjustment: initialSettings.volatilityAdjustment,
+        // ** 新增: ATR 狀態 **
+        enableATR: initialSettings.enableATR,
+        atrPeriod: initialSettings.atrPeriod,
+        atrMultiplier: initialSettings.atrMultiplier,
 
         get availableHigherTimeframes() {
             const currentIndex = this.intervals.findIndex(i => i.value === this.interval);
@@ -159,13 +161,13 @@ const appComponent = () => {
             setupChart('chart', this.onVisibleRangeChanged.bind(this));
             this.fetchData();
 
-            // ** 新增: 監聽市場調整參數 **
+            // ** 新增: 監聽 ATR 參數 **
             const settingsToWatch = [
                 'symbol', 'commonSymbols', 'interval', 'showLiquidity', 'showBOS', 'showCHoCH', 'showOrderBlocks', 'showBreakerBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
                 'isBacktestMode', 'backtestStartDate', 'backtestEndDate', 'htfBias', 'investmentAmount',
                 'riskPerTrade', 'rrRatio', 'setupExpirationCandles',
                 'enableTrendFilter', 'emaPeriod', 'enableMTA', 'higherTimeframe',
-                'marketType', 'volatilityAdjustment'
+                'enableATR', 'atrPeriod', 'atrMultiplier'
             ];
             settingsToWatch.forEach(setting => {
                 this.$watch(setting, (newValue, oldValue) => {
@@ -184,19 +186,10 @@ const appComponent = () => {
                     this.higherTimeframe = this.availableHigherTimeframes[0]?.value || '';
                 }
             });
-
-            // ** 新增: 根據市場類型自動調整建議的波動率乘數 **
-            this.$watch('marketType', (newType) => {
-                if (newType === 'crypto') {
-                    this.volatilityAdjustment = 1.2;
-                } else {
-                    this.volatilityAdjustment = 1.0;
-                }
-            });
         },
 
         saveSettings() {
-            // ** 新增: 保存市場調整參數 **
+            // ** 新增: 保存 ATR 參數 **
             const settings = {
                 symbol: this.symbol, commonSymbols: this.commonSymbols,
                 interval: this.interval, showLiquidity: this.showLiquidity,
@@ -209,7 +202,7 @@ const appComponent = () => {
                 setupExpirationCandles: this.setupExpirationCandles,
                 enableTrendFilter: this.enableTrendFilter, emaPeriod: this.emaPeriod,
                 enableMTA: this.enableMTA, higherTimeframe: this.higherTimeframe,
-                marketType: this.marketType, volatilityAdjustment: this.volatilityAdjustment,
+                enableATR: this.enableATR, atrPeriod: this.atrPeriod, atrMultiplier: this.atrMultiplier,
             };
             localStorage.setItem('smcAnalyzerSettings', JSON.stringify(settings));
         },
@@ -285,15 +278,18 @@ const appComponent = () => {
                 candlesForStandardAnalysis = this.currentCandles.slice(from, to);
             }
             
-            const analyses = analyzeAll(candlesForStandardAnalysis, { enableTrendFilter: false });
-
-            if (this.enableTrendFilter) {
-                analyses.ema = calculateEMA(this.currentCandles, this.emaPeriod);
-            }
+            // ** 修改: 傳遞 ATR 分析設定 **
+            const analysisSettings = {
+                enableTrendFilter: this.enableTrendFilter,
+                emaPeriod: this.emaPeriod,
+                enableATR: this.enableATR,
+                atrPeriod: this.atrPeriod,
+            };
+            const analyses = analyzeAll(candlesForStandardAnalysis, analysisSettings);
             
             let htfAnalyses = null;
             if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
-                htfAnalyses = analyzeAll(this.higherTimeframeCandles, { enableTrendFilter: false });
+                htfAnalyses = analyzeAll(this.higherTimeframeCandles, { enableTrendFilter: false, enableATR: false });
             }
             
             const displaySettings = {
@@ -305,6 +301,7 @@ const appComponent = () => {
                 showFVGs: this.showFVGs,
                 showMitigated: this.showMitigated, 
                 enableTrendFilter: this.enableTrendFilter,
+                enableATR: this.enableATR,
             };
             
             redrawAllAnalyses(analyses, displaySettings, htfAnalyses);
@@ -323,6 +320,13 @@ const appComponent = () => {
                     if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
                         htfAnalyses = analyzeAll(this.higherTimeframeCandles);
                     }
+                    
+                    const analysisSettings = {
+                        enableTrendFilter: this.enableTrendFilter,
+                        emaPeriod: this.emaPeriod,
+                        enableATR: this.enableATR,
+                        atrPeriod: this.atrPeriod,
+                    };
 
                     const backtestParams = {
                         candles: this.currentCandles,
@@ -335,10 +339,11 @@ const appComponent = () => {
                             emaPeriod: this.emaPeriod,
                             enableMTA: this.enableMTA,
                             htfBias: this.htfBias,
-                            // ** 新增: 傳遞市場調整參數 **
-                            volatilityAdjustment: this.volatilityAdjustment,
+                            // ** 新增: 傳遞 ATR 參數 **
+                            enableATR: this.enableATR,
+                            atrMultiplier: this.atrMultiplier,
                         },
-                        analyses: analyzeAll(this.currentCandles, { enableTrendFilter: this.enableTrendFilter, emaPeriod: this.emaPeriod }),
+                        analyses: analyzeAll(this.currentCandles, analysisSettings),
                         htfAnalyses: htfAnalyses,
                     };
                     this.simulationResults = runBacktestSimulation(backtestParams);
