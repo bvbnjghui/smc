@@ -36,7 +36,6 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
-        /* ** 新增：x-cloak 樣式，用於隱藏尚未初始化的 Alpine 元件 ** */
         [x-cloak] { 
             display: none !important; 
         }
@@ -44,7 +43,6 @@
 </head>
 <body class="bg-gray-900 text-gray-200">
 
-    <!-- ** 修改：在主容器上加入 x-cloak ** -->
     <div class="max-w-7xl mx-auto" x-data="app" x-cloak>
         <!-- 元件佔位符 -->
         <div id="sidebar-container"></div>
@@ -63,7 +61,18 @@
         <main class="p-4 md:p-8 pt-24 transition-all duration-300" :class="{'md:ml-64': isSidebarOpen}">
             <div id="header-container"></div>
             
-            <div id="chart" class="bg-gray-800 rounded-2xl shadow-lg"></div>
+            <!-- ** 修改: 移除 isAppReady 容器，讓圖表容器預設可見 ** -->
+            <div class="relative">
+                <div id="chart" class="bg-gray-800 rounded-2xl shadow-lg"></div>
+                <!-- 這個載入疊層現在將同時處理初始載入和後續請求 -->
+                <div x-show="isLoading" x-transition class="absolute inset-0 bg-gray-800/70 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center space-y-4 z-20">
+                    <svg class="animate-spin h-8 w-8 text-teal-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="text-lg text-gray-400">正在載入圖表數據...</p>
+                </div>
+            </div>
 
             <div x-show="error" class="bg-red-900 text-red-200 p-4 rounded-xl mt-8 text-center" x-text="error"></div>
 

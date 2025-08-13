@@ -70,7 +70,6 @@ const appComponent = () => {
             emaPeriod: 50,
             enableMTA: false,
             higherTimeframe: '4h',
-            // ** 新增: ATR 預設值 **
             enableATR: true,
             atrPeriod: 14,
             atrMultiplier: 2,
@@ -146,7 +145,7 @@ const appComponent = () => {
         isSimulationModalOpen: false,
         isSimulationSettingsModalOpen: false,
 
-        // ** 新增: ATR 狀態 **
+        // --- ATR 狀態 ---
         enableATR: initialSettings.enableATR,
         atrPeriod: initialSettings.atrPeriod,
         atrMultiplier: initialSettings.atrMultiplier,
@@ -159,9 +158,7 @@ const appComponent = () => {
         init() {
             console.log('Alpine component initialized.');
             setupChart('chart', this.onVisibleRangeChanged.bind(this));
-            this.fetchData();
 
-            // ** 新增: 監聽 ATR 參數 **
             const settingsToWatch = [
                 'symbol', 'commonSymbols', 'interval', 'showLiquidity', 'showBOS', 'showCHoCH', 'showOrderBlocks', 'showBreakerBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
                 'isBacktestMode', 'backtestStartDate', 'backtestEndDate', 'htfBias', 'investmentAmount',
@@ -186,10 +183,12 @@ const appComponent = () => {
                     this.higherTimeframe = this.availableHigherTimeframes[0]?.value || '';
                 }
             });
+
+            this.fetchData(initialSettings);
+            console.log('Initial data fetch initiated.');
         },
 
         saveSettings() {
-            // ** 新增: 保存 ATR 參數 **
             const settings = {
                 symbol: this.symbol, commonSymbols: this.commonSymbols,
                 interval: this.interval, showLiquidity: this.showLiquidity,
@@ -227,21 +226,26 @@ const appComponent = () => {
             }
         },
 
-        async fetchData() {
-            if (this.isLoading || !this.symbol) return;
+        async fetchData(settingsOverride) {
+            const settings = settingsOverride || this;
+
+            if (this.isLoading || !settings.symbol) return;
             this.stopAutoUpdate();
             this.isLoading = true;
             this.error = '';
             try {
                 const ltfParams = {
-                    symbol: this.symbol, interval: this.interval, isBacktestMode: this.isBacktestMode,
-                    backtestStartDate: this.backtestStartDate, backtestEndDate: this.backtestEndDate,
+                    symbol: settings.symbol, 
+                    interval: settings.interval, 
+                    isBacktestMode: settings.isBacktestMode,
+                    backtestStartDate: settings.backtestStartDate, 
+                    backtestEndDate: settings.backtestEndDate,
                 };
                 const ltfPromise = fetchKlines(ltfParams);
 
                 let htfPromise = Promise.resolve(null);
-                if (this.enableMTA && this.higherTimeframe) {
-                    const htfParams = { ...ltfParams, interval: this.higherTimeframe };
+                if (settings.enableMTA && settings.higherTimeframe) {
+                    const htfParams = { ...ltfParams, interval: settings.higherTimeframe };
                     htfPromise = fetchKlines(htfParams);
                 }
 
@@ -271,27 +275,43 @@ const appComponent = () => {
         redrawChartAnalyses() {
             if (this.currentCandles.length === 0) return;
 
-            let candlesForStandardAnalysis = this.currentCandles;
-            if (this.analyzeVisibleRangeOnly && this.visibleRange) {
-                const from = Math.floor(this.visibleRange.from);
-                const to = Math.ceil(this.visibleRange.to);
-                candlesForStandardAnalysis = this.currentCandles.slice(from, to);
-            }
-            
-            // ** 修改: 傳遞 ATR 分析設定 **
-            const analysisSettings = {
+            // ** 核心修改: 分離全域指標與局部結構的分析 **
+
+            // 1. 始終在完整數據集上計算全域指標 (EMA, ATR)
+            const globalIndicatorSettings = {
                 enableTrendFilter: this.enableTrendFilter,
                 emaPeriod: this.emaPeriod,
                 enableATR: this.enableATR,
                 atrPeriod: this.atrPeriod,
             };
-            const analyses = analyzeAll(candlesForStandardAnalysis, analysisSettings);
+            const globalAnalyses = analyzeAll(this.currentCandles, globalIndicatorSettings);
+
+            // 2. 決定用於局部結構分析的 K 棒數據
+            let candlesForLocalAnalysis = this.currentCandles;
+            if (this.analyzeVisibleRangeOnly && this.visibleRange) {
+                const from = Math.floor(this.visibleRange.from);
+                const to = Math.ceil(this.visibleRange.to);
+                candlesForLocalAnalysis = this.currentCandles.slice(from, to);
+            }
             
+            // 3. 在指定的 K 棒數據上進行局部結構分析 (不計算 EMA, ATR)
+            const localAnalysisSettings = { enableTrendFilter: false, enableATR: false };
+            const localAnalyses = analyzeAll(candlesForLocalAnalysis, localAnalysisSettings);
+            
+            // 4. 合併分析結果：使用局部分析的結構，但保留全域計算的指標
+            const finalAnalyses = {
+                ...localAnalyses, // 包含 BOS, CHoCH, OB, FVG 等
+                ema: globalAnalyses.ema, // 覆蓋為全域計算的 EMA
+                atr: globalAnalyses.atr, // 覆蓋為全域計算的 ATR
+            };
+            
+            // 5. 處理 MTA (始終使用完整 HTF 數據)
             let htfAnalyses = null;
             if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
                 htfAnalyses = analyzeAll(this.higherTimeframeCandles, { enableTrendFilter: false, enableATR: false });
             }
             
+            // 6. 傳遞給繪圖函式
             const displaySettings = {
                 showLiquidity: this.showLiquidity, 
                 showBOS: this.showBOS,
@@ -304,7 +324,7 @@ const appComponent = () => {
                 enableATR: this.enableATR,
             };
             
-            redrawAllAnalyses(analyses, displaySettings, htfAnalyses);
+            redrawAllAnalyses(finalAnalyses, displaySettings, htfAnalyses);
         },
 
         runSimulationFromModal() {
@@ -339,7 +359,6 @@ const appComponent = () => {
                             emaPeriod: this.emaPeriod,
                             enableMTA: this.enableMTA,
                             htfBias: this.htfBias,
-                            // ** 新增: 傳遞 ATR 參數 **
                             enableATR: this.enableATR,
                             atrMultiplier: this.atrMultiplier,
                         },
