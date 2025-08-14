@@ -1,18 +1,7 @@
 // smc/modules/backtester.js
 
-/**
- * @file 獨立的回測模擬引擎。
- */
-
 import { findNearestPOI } from './smc-analyzer.js';
 
-/**
- * 檢查 LTF K 棒是否位於 HTF POI 內部。
- * @param {object} candle - 當前的 LTF K 線。
- * @param {string} direction - 'LONG' 或 'SHORT'。
- * @param {object} htfAnalyses - 高時間週期的分析結果。
- * @returns {boolean} 是否在 HTF POI 內部。
- */
 function isInsideHtfPoi(candle, direction, htfAnalyses) {
     if (!htfAnalyses) return false;
 
@@ -34,28 +23,27 @@ function isInsideHtfPoi(candle, direction, htfAnalyses) {
     return false;
 }
 
-
-/**
- * 執行策略回測模擬。
- * @param {object} params - 回測所需的所有參數。
- * @returns {object} 回測結果。
- */
 export function runBacktestSimulation(params) {
     const { candles, settings, analyses, htfAnalyses } = params;
     const { 
         investmentAmount, 
         riskPerTrade, 
         rrRatio,
+        rrRatioTP2,
+        enableBreakeven,
         setupExpirationCandles,
         enableTrendFilter,
         emaPeriod,
         enableMTA,
         htfBias,
         enableATR,
-        atrMultiplier
+        atrMultiplier,
+        enableKillzoneFilter,
+        useLondonKillzone,
+        useNewYorkKillzone
     } = settings;
 
-    console.log("--- 開始策略回測模擬 (ATR Enabled: " + enableATR + ", Bias: " + htfBias + ") ---");
+    console.log("--- 開始策略回測模擬 (Multi-TP Enabled) ---");
     console.log("初始設定:", settings);
 
     let equity = investmentAmount;
@@ -68,26 +56,52 @@ export function runBacktestSimulation(params) {
 
     for (let i = 0; i < candles.length; i++) {
         const candle = candles[i];
-        const candleTime = new Date(candle.time * 1000).toLocaleString();
 
-        // 處理進行中的交易 (止損/止盈)
         if (activeTrade) {
             let exitPrice = null;
             let exitReason = '';
+            let exitSize = 0;
 
-            if (activeTrade.direction === 'LONG') {
-                if (candle.low <= activeTrade.stopLoss) { exitPrice = activeTrade.stopLoss; exitReason = 'StopLoss'; }
-                // ** 修正: 將 active.takeProfit 改為 activeTrade.takeProfit **
-                else if (candle.high >= activeTrade.takeProfit) { exitPrice = activeTrade.takeProfit; exitReason = 'TakeProfit'; }
-            } else { // SHORT
-                if (candle.high >= activeTrade.stopLoss) { exitPrice = activeTrade.stopLoss; exitReason = 'StopLoss'; }
-                else if (candle.low <= activeTrade.takeProfit) { exitPrice = activeTrade.takeProfit; exitReason = 'TakeProfit'; }
+            const isLong = activeTrade.direction === 'LONG';
+            const isShort = activeTrade.direction === 'SHORT';
+
+            if (!activeTrade.tp1Hit && 
+                ((isLong && candle.high >= activeTrade.takeProfit1) || 
+                 (isShort && candle.low <= activeTrade.takeProfit1))) {
+                
+                exitPrice = activeTrade.takeProfit1;
+                exitReason = 'TP1';
+                exitSize = activeTrade.initialSize / 2;
+
+                const pnl = (exitPrice - activeTrade.entryPrice) * exitSize * (isLong ? 1 : -1);
+                equity += pnl;
+                trades.push({ ...activeTrade, exitPrice, exitTime: candle.time, pnl, exitReason, size: exitSize });
+
+                activeTrade.size -= exitSize;
+                activeTrade.tp1Hit = true;
+                if (enableBreakeven) {
+                    activeTrade.stopLoss = activeTrade.entryPrice;
+                }
+                // Reset exitPrice for the next check in the same candle
+                exitPrice = null; 
+            }
+
+            if ((isLong && candle.low <= activeTrade.stopLoss) || (isShort && candle.high >= activeTrade.stopLoss)) {
+                exitPrice = activeTrade.stopLoss;
+                exitReason = activeTrade.tp1Hit && enableBreakeven ? 'Breakeven' : 'StopLoss';
+            } else if (activeTrade.tp1Hit && 
+                       ((isLong && candle.high >= activeTrade.takeProfit2) || 
+                        (isShort && candle.low <= activeTrade.takeProfit2))) {
+                exitPrice = activeTrade.takeProfit2;
+                exitReason = 'TP2';
             }
 
             if (exitPrice) {
-                const pnl = (exitPrice - activeTrade.entryPrice) * activeTrade.size * (activeTrade.direction === 'LONG' ? 1 : -1);
+                exitSize = activeTrade.size;
+                const pnl = (exitPrice - activeTrade.entryPrice) * exitSize * (isLong ? 1 : -1);
                 equity += pnl;
-                trades.push({ ...activeTrade, exitPrice, exitTime: candle.time, pnl, exitReason });
+                trades.push({ ...activeTrade, exitPrice, exitTime: candle.time, pnl, exitReason, size: exitSize });
+                
                 activeTrade = null;
                 setup = null; 
             }
@@ -95,7 +109,6 @@ export function runBacktestSimulation(params) {
 
         if (activeTrade) continue; 
 
-        // 處理等待中的交易設定
         if (setup) {
             if (i > setup.creationIndex + setupExpirationCandles) { setup = null; }
             else if ((setup.direction === 'LONG' && candle.low <= setup.protectionPoint) || (setup.direction === 'SHORT' && candle.high >= setup.protectionPoint)) { setup = null; }
@@ -106,7 +119,6 @@ export function runBacktestSimulation(params) {
 
                 if (entryPrice) {
                     const riskPercent = riskPerTrade;
-                    
                     let stopLoss;
                     if (enableATR && atr[i] && atr[i].value) {
                         const atrValue = atr[i].value;
@@ -120,13 +132,21 @@ export function runBacktestSimulation(params) {
                     const riskPerUnit = Math.abs(entryPrice - stopLoss);
                     
                     if (riskPerUnit > 0) {
-                        const takeProfit = setup.direction === 'LONG' ? entryPrice + riskPerUnit * rrRatio : entryPrice - riskPerUnit * rrRatio;
-                        
+                        const takeProfit1 = setup.direction === 'LONG' ? entryPrice + riskPerUnit * rrRatio : entryPrice - riskPerUnit * rrRatio;
+                        const takeProfit2 = setup.direction === 'LONG' ? entryPrice + riskPerUnit * rrRatioTP2 : entryPrice - riskPerUnit * rrRatioTP2;
                         const size = (equity * (riskPercent / 100)) / riskPerUnit;
                         
                         activeTrade = {
-                            direction: setup.direction, entryTime: candle.time, entryPrice,
-                            stopLoss, takeProfit, size, setupType: setup.type,
+                            direction: setup.direction,
+                            entryTime: candle.time,
+                            entryPrice,
+                            stopLoss,
+                            takeProfit1,
+                            takeProfit2,
+                            size,
+                            initialSize: size,
+                            tp1Hit: false,
+                            setupType: setup.type,
                         };
                         setup = null; 
                     }
@@ -134,8 +154,19 @@ export function runBacktestSimulation(params) {
             }
         }
 
-        // 如果沒有等待中的設定，則尋找新的交易機會
         if (!setup) {
+            if (enableKillzoneFilter) {
+                const candleDate = new Date(candle.time * 1000);
+                const hourUTC = candleDate.getUTCHours();
+                
+                const inLondonKillzone = useLondonKillzone && (hourUTC >= 7 && hourUTC < 10);
+                const inNewYorkKillzone = useNewYorkKillzone && (hourUTC >= 12 && hourUTC < 15);
+
+                if (!inLondonKillzone && !inNewYorkKillzone) {
+                    continue; 
+                }
+            }
+
             const confirmationSignal = chochEvents.find(c => c.marker.time === candle.time);
 
             if (confirmationSignal) {
@@ -156,7 +187,6 @@ export function runBacktestSimulation(params) {
                     if (!isInsideHtfPoi(candle, direction, htfAnalyses)) {
                         continue; 
                     }
-                     console.log(`%c[${candleTime}] MTA Confirmed: 價格進入 HTF POI`, 'color: #a78bfa;');
                 }
 
                 const poiDirection = direction === 'LONG' ? 'bullish' : 'bearish';
@@ -183,14 +213,16 @@ export function runBacktestSimulation(params) {
         }
     }
 
-    const totalTrades = trades.length;
+    const totalExits = trades.length;
     const wins = trades.filter(t => t.pnl > 0).length;
-    const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+    const winRate = totalExits > 0 ? (wins / totalExits) * 100 : 0;
     const netPnl = equity - investmentAmount;
     const pnlPercent = (netPnl / investmentAmount) * 100;
 
     const results = {
-        finalEquity: equity, netPnl, pnlPercent, winRate, totalTrades, trades,
+        finalEquity: equity, netPnl, pnlPercent, winRate, 
+        totalTrades: totalExits,
+        trades,
     };
     
     console.log("--- 回測模擬結束 ---");

@@ -25,7 +25,7 @@
                         >
                             <span class="font-medium" x-text="sym"></span>
                             <button @click.stop="removeSymbol(sym)" class="p-1 rounded-full hover:bg-red-500/50 text-gray-400 hover:text-white">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                             </button>
                         </div>
                     </template>
@@ -154,7 +154,6 @@
                 <div x-show="enableTrendFilter" x-collapse class="space-y-2">
                     <div class="flex items-center space-x-2">
                         <label for="emaPeriod" class="text-sm text-gray-400">EMA 週期:</label>
-                        <!-- ** 新增: EMA 週期說明 ** -->
                         <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
                             <button x-ref="infoBtnEma" type="button" class="text-gray-500 hover:text-gray-300">
                                 <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
@@ -172,7 +171,6 @@
             <div class="space-y-4 pt-4 border-t border-gray-700">
                 <h3 class="text-lg font-semibold text-gray-300">多時間週期分析 (MTA)</h3>
                 <div class="flex items-center justify-between text-gray-400">
-                    <!-- ** 新增: MTA 啟用說明 ** -->
                     <div class="flex items-center space-x-2">
                         <span>啟用 MTA</span>
                         <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
@@ -237,6 +235,28 @@
                             </div>
                         </div>
                         <input type="number" id="atrMultiplier" x-model.number="atrMultiplier" step="0.1" min="0.1" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 交易時段過濾 -->
+            <div class="space-y-4 pt-4 border-t border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-300">交易時段過濾</h3>
+                 <div class="flex items-center justify-between text-gray-400">
+                    <span>啟用時段過濾</span>
+                    <div class="relative inline-block w-10 align-middle select-none">
+                        <input type="checkbox" id="enableKillzoneFilter" x-model="enableKillzoneFilter" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                        <label for="enableKillzoneFilter" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer"></label>
+                    </div>
+                </div>
+                <div x-show="enableKillzoneFilter" x-collapse class="space-y-2 pl-4">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="useLondonKillzone" x-model="useLondonKillzone" class="w-4 h-4 text-teal-600 bg-gray-700 border-gray-600 rounded focus:ring-teal-500">
+                        <label for="useLondonKillzone" class="ml-2 text-sm text-gray-300">倫敦時段 (07-10 UTC)</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="useNewYorkKillzone" x-model="useNewYorkKillzone" class="w-4 h-4 text-teal-600 bg-gray-700 border-gray-600 rounded focus:ring-teal-500">
+                        <label for="useNewYorkKillzone" class="ml-2 text-sm text-gray-300">紐約時段 (12-15 UTC)</label>
                     </div>
                 </div>
             </div>

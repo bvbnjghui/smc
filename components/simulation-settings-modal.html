@@ -8,7 +8,7 @@
             </button>
         </div>
         <div class="overflow-y-auto space-y-4 pr-2">
-            <!-- ** 新增: HTF 偏好設定 ** -->
+            <!-- HTF 偏好設定 -->
             <div class="space-y-2">
                 <div class="flex items-center space-x-2">
                     <label for="htfBias" class="text-sm text-gray-400">HTF 偏好 (Bias):</label>
@@ -33,10 +33,10 @@
                 <div class="flex items-center space-x-2">
                     <label for="investmentAmount" class="text-sm text-gray-400">初始金額 ($):</label>
                     <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
-                        <button x-ref="infoBtn1" type="button" class="text-gray-500 hover:text-gray-300">
+                        <button x-ref="infoBtnAmount" type="button" class="text-gray-500 hover:text-gray-300">
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
                         </button>
-                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtn1" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
+                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtnAmount" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
                             這是您開始回測時的初始模擬資金總額。
                         </div>
                     </div>
@@ -48,10 +48,10 @@
                 <div class="flex items-center space-x-2">
                     <label for="riskPerTrade" class="text-sm text-gray-400">單筆風險 (%):</label>
                     <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
-                        <button x-ref="infoBtn2" type="button" class="text-gray-500 hover:text-gray-300">
+                        <button x-ref="infoBtnRisk" type="button" class="text-gray-500 hover:text-gray-300">
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
                         </button>
-                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtn2" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
+                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtnRisk" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
                             您願意為每一筆交易承擔的資金風險百分比。例如：1% 代表單筆交易最多虧損當前帳戶權益的 1%。
                         </div>
                     </div>
@@ -61,27 +61,48 @@
             <!-- 風險回報比 -->
             <div class="space-y-2">
                 <div class="flex items-center space-x-2">
-                    <label for="rrRatio" class="text-sm text-gray-400">風險回報比 (1:X):</label>
-                    <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
-                        <button x-ref="infoBtn5" type="button" class="text-gray-500 hover:text-gray-300">
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
-                        </button>
-                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtn5" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
-                            設定您的止盈目標。例如，設定為 2 代表您的止盈距離是止損距離的 2 倍。
-                        </div>
-                    </div>
+                    <label for="rrRatio" class="text-sm text-gray-400">第一止盈點 (TP1) 風險回報比:</label>
                 </div>
                 <input type="number" id="rrRatio" x-model.number="rrRatio" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-50">
             </div>
+            
+            <!-- 第二止盈點與保本止損 -->
+            <div class="space-y-2">
+                <div class="flex items-center space-x-2">
+                    <label for="rrRatioTP2" class="text-sm text-gray-400">第二止盈點 (TP2) 風險回報比:</label>
+                    <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
+                        <button x-ref="infoBtnTp2" type="button" class="text-gray-500 hover:text-gray-300">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                        </button>
+                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtnTp2" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
+                            設定剩餘一半倉位的最終止盈目標。必須大於 TP1。
+                        </div>
+                    </div>
+                </div>
+                <input type="number" id="rrRatioTP2" x-model.number="rrRatioTP2" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-50">
+            </div>
+            <div class="flex items-center space-x-2">
+                <input type="checkbox" id="enableBreakeven" x-model="enableBreakeven" class="w-4 h-4 text-teal-600 bg-gray-700 border-gray-600 rounded focus:ring-teal-500">
+                <label for="enableBreakeven" class="text-sm text-gray-300">觸發 TP1 後啟用保本止損</label>
+                 <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
+                    <button x-ref="infoBtnBe" type="button" class="text-gray-500 hover:text-gray-300">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtnBe" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
+                        勾選後，當價格觸及 TP1，剩餘倉位的止損點將自動移動到您的進場成本價，成為一筆「零風險」的交易。
+                    </div>
+                </div>
+            </div>
+            
             <!-- 等待 K 棒數量 -->
             <div class="space-y-2">
                 <div class="flex items-center space-x-2">
                     <label for="setupExpirationCandles" class="text-sm text-gray-400">等待 K 棒數量:</label>
                     <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
-                        <button x-ref="infoBtn6" type="button" class="text-gray-500 hover:text-gray-300">
+                        <button x-ref="infoBtnExp" type="button" class="text-gray-500 hover:text-gray-300">
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
                         </button>
-                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtn6" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
+                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtnExp" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
                             在一個有效的交易設定 (Setup) 形成後，模擬器會等待幾根 K 棒的時間讓價格回到進場區。如果超過這個數量價格仍未進場，該設定將會失效。
                         </div>
                     </div>

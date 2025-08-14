@@ -1,10 +1,5 @@
 // smc/main.js
 
-/**
- * @file 應用程式主入口檔案。
- * 負責載入 HTML 元件、匯入並啟動 Alpine.js、整合所有模組並管理 UI 狀態。
- */
-
 import Alpine from 'https://unpkg.com/alpinejs@3.x.x/dist/module.esm.js';
 import collapse from 'https://unpkg.com/@alpinejs/collapse@3.x.x/dist/module.esm.js';
 import anchor from 'https://unpkg.com/@alpinejs/anchor@3.x.x/dist/module.esm.js';
@@ -65,6 +60,8 @@ const appComponent = () => {
             investmentAmount: 10000,
             riskPerTrade: 1,
             rrRatio: 2,
+            rrRatioTP2: 3,
+            enableBreakeven: true,
             setupExpirationCandles: 30,
             enableTrendFilter: false,
             emaPeriod: 50,
@@ -73,6 +70,9 @@ const appComponent = () => {
             enableATR: true,
             atrPeriod: 14,
             atrMultiplier: 2,
+            enableKillzoneFilter: false,
+            useLondonKillzone: true,
+            useNewYorkKillzone: true,
         };
 
         try {
@@ -139,6 +139,8 @@ const appComponent = () => {
         investmentAmount: initialSettings.investmentAmount,
         riskPerTrade: initialSettings.riskPerTrade,
         rrRatio: initialSettings.rrRatio,
+        rrRatioTP2: initialSettings.rrRatioTP2,
+        enableBreakeven: initialSettings.enableBreakeven,
         setupExpirationCandles: initialSettings.setupExpirationCandles,
         isSimulating: false,
         simulationResults: null,
@@ -149,6 +151,11 @@ const appComponent = () => {
         enableATR: initialSettings.enableATR,
         atrPeriod: initialSettings.atrPeriod,
         atrMultiplier: initialSettings.atrMultiplier,
+
+        // --- Killzone 狀態 ---
+        enableKillzoneFilter: initialSettings.enableKillzoneFilter,
+        useLondonKillzone: initialSettings.useLondonKillzone,
+        useNewYorkKillzone: initialSettings.useNewYorkKillzone,
 
         get availableHigherTimeframes() {
             const currentIndex = this.intervals.findIndex(i => i.value === this.interval);
@@ -162,9 +169,10 @@ const appComponent = () => {
             const settingsToWatch = [
                 'symbol', 'commonSymbols', 'interval', 'showLiquidity', 'showBOS', 'showCHoCH', 'showOrderBlocks', 'showBreakerBlocks', 'showFVGs', 'showMitigated', 'analyzeVisibleRangeOnly',
                 'isBacktestMode', 'backtestStartDate', 'backtestEndDate', 'htfBias', 'investmentAmount',
-                'riskPerTrade', 'rrRatio', 'setupExpirationCandles',
+                'riskPerTrade', 'rrRatio', 'rrRatioTP2', 'enableBreakeven', 'setupExpirationCandles',
                 'enableTrendFilter', 'emaPeriod', 'enableMTA', 'higherTimeframe',
-                'enableATR', 'atrPeriod', 'atrMultiplier'
+                'enableATR', 'atrPeriod', 'atrMultiplier',
+                'enableKillzoneFilter', 'useLondonKillzone', 'useNewYorkKillzone'
             ];
             settingsToWatch.forEach(setting => {
                 this.$watch(setting, (newValue, oldValue) => {
@@ -197,11 +205,17 @@ const appComponent = () => {
                 showMitigated: this.showMitigated, analyzeVisibleRangeOnly: this.analyzeVisibleRangeOnly,
                 isBacktestMode: this.isBacktestMode, backtestStartDate: this.backtestStartDate,
                 backtestEndDate: this.backtestEndDate, htfBias: this.htfBias, investmentAmount: this.investmentAmount,
-                riskPerTrade: this.riskPerTrade, rrRatio: this.rrRatio,
+                riskPerTrade: this.riskPerTrade,
+                rrRatio: this.rrRatio,
+                rrRatioTP2: this.rrRatioTP2,
+                enableBreakeven: this.enableBreakeven,
                 setupExpirationCandles: this.setupExpirationCandles,
                 enableTrendFilter: this.enableTrendFilter, emaPeriod: this.emaPeriod,
                 enableMTA: this.enableMTA, higherTimeframe: this.higherTimeframe,
                 enableATR: this.enableATR, atrPeriod: this.atrPeriod, atrMultiplier: this.atrMultiplier,
+                enableKillzoneFilter: this.enableKillzoneFilter,
+                useLondonKillzone: this.useLondonKillzone,
+                useNewYorkKillzone: this.useNewYorkKillzone,
             };
             localStorage.setItem('smcAnalyzerSettings', JSON.stringify(settings));
         },
@@ -275,9 +289,6 @@ const appComponent = () => {
         redrawChartAnalyses() {
             if (this.currentCandles.length === 0) return;
 
-            // ** 核心修改: 分離全域指標與局部結構的分析 **
-
-            // 1. 始終在完整數據集上計算全域指標 (EMA, ATR)
             const globalIndicatorSettings = {
                 enableTrendFilter: this.enableTrendFilter,
                 emaPeriod: this.emaPeriod,
@@ -286,7 +297,6 @@ const appComponent = () => {
             };
             const globalAnalyses = analyzeAll(this.currentCandles, globalIndicatorSettings);
 
-            // 2. 決定用於局部結構分析的 K 棒數據
             let candlesForLocalAnalysis = this.currentCandles;
             if (this.analyzeVisibleRangeOnly && this.visibleRange) {
                 const from = Math.floor(this.visibleRange.from);
@@ -294,24 +304,20 @@ const appComponent = () => {
                 candlesForLocalAnalysis = this.currentCandles.slice(from, to);
             }
             
-            // 3. 在指定的 K 棒數據上進行局部結構分析 (不計算 EMA, ATR)
             const localAnalysisSettings = { enableTrendFilter: false, enableATR: false };
             const localAnalyses = analyzeAll(candlesForLocalAnalysis, localAnalysisSettings);
             
-            // 4. 合併分析結果：使用局部分析的結構，但保留全域計算的指標
             const finalAnalyses = {
-                ...localAnalyses, // 包含 BOS, CHoCH, OB, FVG 等
-                ema: globalAnalyses.ema, // 覆蓋為全域計算的 EMA
-                atr: globalAnalyses.atr, // 覆蓋為全域計算的 ATR
+                ...localAnalyses,
+                ema: globalAnalyses.ema,
+                atr: globalAnalyses.atr,
             };
             
-            // 5. 處理 MTA (始終使用完整 HTF 數據)
             let htfAnalyses = null;
             if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
                 htfAnalyses = analyzeAll(this.higherTimeframeCandles, { enableTrendFilter: false, enableATR: false });
             }
             
-            // 6. 傳遞給繪圖函式
             const displaySettings = {
                 showLiquidity: this.showLiquidity, 
                 showBOS: this.showBOS,
@@ -354,6 +360,8 @@ const appComponent = () => {
                             investmentAmount: this.investmentAmount, 
                             riskPerTrade: this.riskPerTrade,
                             rrRatio: this.rrRatio,
+                            rrRatioTP2: this.rrRatioTP2,
+                            enableBreakeven: this.enableBreakeven,
                             setupExpirationCandles: this.setupExpirationCandles,
                             enableTrendFilter: this.enableTrendFilter,
                             emaPeriod: this.emaPeriod,
@@ -361,6 +369,9 @@ const appComponent = () => {
                             htfBias: this.htfBias,
                             enableATR: this.enableATR,
                             atrMultiplier: this.atrMultiplier,
+                            enableKillzoneFilter: this.enableKillzoneFilter,
+                            useLondonKillzone: this.useLondonKillzone,
+                            useNewYorkKillzone: this.useNewYorkKillzone,
                         },
                         analyses: analyzeAll(this.currentCandles, analysisSettings),
                         htfAnalyses: htfAnalyses,
