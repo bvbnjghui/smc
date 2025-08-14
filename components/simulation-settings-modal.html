@@ -28,8 +28,64 @@
                 </select>
             </div>
 
-            <!-- 初始金額 -->
+            <!-- 進場策略選擇 -->
             <div class="space-y-2">
+                <div class="flex items-center space-x-2">
+                    <label for="entryStrategy" class="text-sm text-gray-400">進場策略 (Entry Strategy):</label>
+                    <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">
+                        <button x-ref="infoBtnStrategy" type="button" class="text-gray-500 hover:text-gray-300">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                        </button>
+                        <div x-show="tooltipVisible" x-anchor.top.offset.8="$refs.infoBtnStrategy" x-transition class="absolute w-64 bg-gray-900 text-gray-200 text-xs rounded-lg p-2 shadow-lg z-10 pointer-events-none">
+                            選擇回測時使用的進場邏輯。<br><b>反轉確認型:</b> 等待 CHoCH 信號出現後再進場。<br><b>區域反應型:</b> 直接在符合趨勢的 POI (OB/FVG) 處進場，不等待確認。
+                        </div>
+                    </div>
+                </div>
+                <select id="entryStrategy" x-model="entryStrategy" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-50">
+                    <option value="reversal_confirmation">反轉確認型 (Confirmation)</option>
+                    <option value="poi_reaction">區域反應型 (Risk Entry)</option>
+                </select>
+            </div>
+
+            <!-- 權重計分系統設定 -->
+            <div x-show="entryStrategy === 'poi_reaction'" x-collapse class="space-y-4 pt-4 border-t border-gray-600">
+                <h3 class="text-lg font-semibold text-gray-300">權重計分設定</h3>
+                <div class="space-y-2">
+                    <label class="text-sm text-gray-400">進場權重門檻:</label>
+                    <input type="number" x-model.number="entryScoreThreshold" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-sm text-gray-400">OB 權重:</label>
+                        <input type="number" x-model.number="obWeight" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm text-gray-400">Breaker 權重:</label>
+                        <input type="number" x-model.number="breakerWeight" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600">
+                    </div>
+                </div>
+                 <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-sm text-gray-400">MTA 權重:</label>
+                        <input type="number" x-model.number="mtaWeight" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-sm text-gray-400">EMA 權重:</label>
+                        <input type="number" x-model.number="emaWeight" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600">
+                    </div>
+                </div>
+                 <div class="space-y-2">
+                    <label class="text-sm text-gray-400">近期流動性掠奪權重:</label>
+                    <input type="number" x-model.number="liquidityGrabWeight" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm text-gray-400">誘導性流動性掠奪權重:</label>
+                    <input type="number" x-model.number="inducementWeight" class="w-full p-2 rounded-lg bg-gray-700 border border-gray-600">
+                </div>
+            </div>
+
+            <!-- 初始金額 -->
+            <div class="space-y-2 pt-4 border-t border-gray-600">
                 <div class="flex items-center space-x-2">
                     <label for="investmentAmount" class="text-sm text-gray-400">初始金額 ($):</label>
                     <div x-data="{ tooltipVisible: false }" @mouseenter="tooltipVisible = true" @mouseleave="tooltipVisible = false" class="relative">

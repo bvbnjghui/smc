@@ -5,12 +5,6 @@
  * 包含所有 SMC 概念的計算邏輯，此模組為純函式，不依賴外部狀態。
  */
 
-/**
- * **新增**: 計算並匯出平均真實波幅 (ATR)。
- * @param {object[]} candles - K 線數據陣列。
- * @param {number} period - ATR 的計算週期。
- * @returns {object[]} ATR 數據陣列。
- */
 export function calculateATR(candles, period) {
     const atrValues = [];
     if (candles.length < period) return atrValues;
@@ -44,12 +38,6 @@ export function calculateATR(candles, period) {
 }
 
 
-/**
- * 計算並匯出指數移動平均線 (EMA)。
- * @param {object[]} candles - K 線數據陣列。
- * @param {number} period - EMA 的計算週期。
- * @returns {object[]} EMA 數據陣列。
- */
 export function calculateEMA(candles, period) {
     const emaValues = [];
     if (candles.length < period) return emaValues;
@@ -78,11 +66,6 @@ export function calculateEMA(candles, period) {
 }
 
 
-/**
- * 找出所有的波段高/低點 (Swing High/Low)。
- * @param {object[]} candles - K 線數據陣列。
- * @returns {{swingHighs: object[], swingLows: object[]}} 波段高低點物件。
- */
 function analyzeAndGetSwingPoints(candles) {
     const swingHighs = [];
     const swingLows = [];
@@ -100,12 +83,6 @@ function analyzeAndGetSwingPoints(candles) {
     return { swingHighs, swingLows };
 }
 
-/**
- * 根據波段點判斷市場結構 (BOS/CHoCH)。
- * @param {object[]} candles - K 線數據陣列。
- * @param {{swingHighs: object[], swingLows: object[]}} swingPoints - 波段高低點物件。
- * @returns {{bosEvents: object[], chochEvents: object[]}} 市場結構事件。
- */
 function analyzeMarketStructure(candles, swingPoints) {
     const bosEvents = [];
     const chochEvents = [];
@@ -171,12 +148,6 @@ function analyzeMarketStructure(candles, swingPoints) {
 }
 
 
-/**
- * 根據波段點，找出流動性掠奪 (BSL/SSL) 事件。
- * @param {object[]} candles - K 線數據陣列。
- * @param {{swingHighs: object[], swingLows: object[]}} swingPoints - 波段高低點物件。
- * @returns {object} 按時間戳分組的流動性掠奪事件。
- */
 function analyzeLiquidityGrabs(candles, swingPoints) {
     const grabsByTime = {};
     const { swingHighs, swingLows } = swingPoints;
@@ -204,11 +175,6 @@ function analyzeLiquidityGrabs(candles, swingPoints) {
 }
 
 
-/**
- * 找出所有公平價值缺口 (FVG)，並標記是否已被緩解。
- * @param {object[]} candles - K 線數據陣列。
- * @returns {object[]} FVG 事件陣列，包含 isMitigated 標記。
- */
 function analyzeAndGetFVGs(candles) {
     const results = [];
     for (let i = 1; i < candles.length - 1; i++) {
@@ -225,7 +191,7 @@ function analyzeAndGetFVGs(candles) {
                     break; 
                 }
             }
-            results.push({ type: 'bullish', top: fvgTop, bottom: fvgBottom, index: i, isMitigated });
+            results.push({ type: 'bullish', top: fvgTop, bottom: fvgBottom, index: i, isMitigated, poiType: 'FVG' });
         }
 
         if (prevCandle.high < nextCandle.low) {
@@ -238,17 +204,12 @@ function analyzeAndGetFVGs(candles) {
                     break; 
                 }
             }
-            results.push({ type: 'bearish', top: fvgTop, bottom: fvgBottom, index: i, isMitigated });
+            results.push({ type: 'bearish', top: fvgTop, bottom: fvgBottom, index: i, isMitigated, poiType: 'FVG' });
         }
     }
     return results;
 }
 
-/**
- * 找出所有訂單塊 (OB)，並標記是否已被緩解。
- * @param {object[]} candles - K 線數據陣列。
- * @returns {object[]} OB 事件陣列，包含 isMitigated 標記。
- */
 function analyzeAndGetOrderBlocks(candles) {
     const results = [];
     for (let i = 0; i < candles.length - 1; i++) {
@@ -265,7 +226,7 @@ function analyzeAndGetOrderBlocks(candles) {
                     break; 
                 }
             }
-            results.push({ type: 'bearish', top: obTop, bottom: obBottom, index: i, isMitigated });
+            results.push({ type: 'bearish', top: obTop, bottom: obBottom, index: i, isMitigated, poiType: 'OB' });
         }
 
         if (orderBlockCandle.close < orderBlockCandle.open && breakCandle.close > orderBlockCandle.high) {
@@ -278,38 +239,42 @@ function analyzeAndGetOrderBlocks(candles) {
                     break; 
                 }
             }
-            results.push({ type: 'bullish', top: obTop, bottom: obBottom, index: i, isMitigated });
+            results.push({ type: 'bullish', top: obTop, bottom: obBottom, index: i, isMitigated, poiType: 'OB' });
         }
     }
     return results;
 }
 
-/**
- * 找出所有 Breaker Blocks (BB)。
- * @param {object[]} orderBlocks - 已找出的訂單塊陣列。
- * @returns {object[]} Breaker Block 事件陣列。
- */
-function analyzeAndGetBreakerBlocks(orderBlocks) {
-    return orderBlocks
-        .filter(ob => ob.isMitigated)
-        .map(ob => ({
-            type: ob.type === 'bullish' ? 'bearish' : 'bullish', 
-            top: ob.top,
-            bottom: ob.bottom,
-            index: ob.index,
-            isMitigated: ob.isMitigated
-        }));
+function analyzeAndGetBreakerBlocks(candles, orderBlocks) {
+    const breakerBlocks = [];
+    for (const ob of orderBlocks) {
+        let isBroken = false;
+        for (let i = ob.index + 1; i < candles.length; i++) {
+            if (ob.type === 'bullish' && candles[i].close < ob.bottom) {
+                isBroken = true;
+                break;
+            }
+            if (ob.type === 'bearish' && candles[i].close > ob.top) {
+                isBroken = true;
+                break;
+            }
+        }
+        if (isBroken) {
+            breakerBlocks.push({
+                type: ob.type === 'bullish' ? 'bearish' : 'bullish', 
+                top: ob.top,
+                bottom: ob.bottom,
+                index: ob.index,
+                isMitigated: ob.isMitigated,
+                poiType: 'Breaker'
+            });
+        }
+    }
+    return breakerBlocks;
 }
 
 
-/**
- * 統一呼叫所有分析函式的入口。
- * @param {object[]} candles - K 線數據陣列。
- * @param {object} settings - 包含分析所需設定的物件。
- * @returns {object} 包含所有分析結果的物件。
- */
 export function analyzeAll(candles, settings = {}) {
-    // ** 新增: 解構出 ATR 相關設定 **
     const { enableTrendFilter, emaPeriod, enableATR, atrPeriod } = settings;
 
     if (!candles || candles.length < 3) {
@@ -321,7 +286,6 @@ export function analyzeAll(candles, settings = {}) {
     const { bosEvents, chochEvents } = analyzeMarketStructure(analyzableCandles, swingPoints);
     const orderBlocks = analyzeAndGetOrderBlocks(analyzableCandles);
     const ema = enableTrendFilter ? calculateEMA(analyzableCandles, emaPeriod) : [];
-    // ** 新增: 計算 ATR **
     const atr = enableATR ? calculateATR(analyzableCandles, atrPeriod) : [];
 
     return {
@@ -331,22 +295,13 @@ export function analyzeAll(candles, settings = {}) {
         chochEvents,
         orderBlocks,
         fvgs: analyzeAndGetFVGs(analyzableCandles),
-        breakerBlocks: analyzeAndGetBreakerBlocks(orderBlocks),
+        breakerBlocks: analyzeAndGetBreakerBlocks(analyzableCandles, orderBlocks),
         ema,
-        atr, // ** 新增: 回傳 ATR 結果 **
+        atr,
     };
 }
 
 
-/**
- * 尋找最近的興趣點 (POI - Point of Interest)，即 OB, BB 或 FVG。
- * @param {number} currentIndex - 當前 K 線的索引。
- * @param {string} type - 'bullish' 或 'bearish'。
- * @param {object[]} orderBlocks - 訂單塊陣列。
- * @param {object[]} fvgs - FVG 陣列。
- * @param {object[]} breakerBlocks - 突破塊陣列。
- * @returns {object|null} 最近的 POI 物件或 null。
- */
 export function findNearestPOI(currentIndex, type, orderBlocks, fvgs, breakerBlocks) {
     const pois = [...orderBlocks, ...fvgs, ...breakerBlocks]
         .filter(p => p.type === type && p.index <= currentIndex)
