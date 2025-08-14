@@ -52,7 +52,8 @@ export function runBacktestSimulation(params) {
 
         // 3. 尋找新信號
         if (!setup) {
-            const signal = findSignal(candle, i, settings, analyses, htfAnalyses, poisForReaction);
+            // ** 核心修正: 將 `candles` 陣列傳遞給 findSignal **
+            const signal = findSignal(candle, i, settings, analyses, htfAnalyses, poisForReaction, candles);
             if (signal) {
                 if (signal.newTrade) { // Risk Entry
                     const riskPerUnit = Math.abs(signal.newTrade.entryPrice - signal.newTrade.stopLoss);

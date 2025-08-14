@@ -69,9 +69,13 @@ function calculateConfluenceScore(candle, poi, currentIndex, analyses, htfAnalys
     return score;
 }
 
-function findConfirmationSignal(candle, currentIndex, settings, analyses, htfAnalyses) {
+// ** 核心修正: 接收 `candles` 參數 **
+function findConfirmationSignal(candle, currentIndex, settings, analyses, htfAnalyses, candles) {
     const { htfBias, enableTrendFilter, enableMTA } = settings;
-    const { chochEvents, orderBlocks, fvgs, breakerBlocks, ema, liquidityGrabs, candles } = analyses;
+    // ** 核心修正: 從 `analyses` 的解構中移除 `candles` **
+    const { chochEvents, orderBlocks, fvgs, breakerBlocks, ema, liquidityGrabs } = analyses;
+
+    if (!chochEvents) return null; // Defensive check
 
     const confirmationSignal = chochEvents.find(c => c.marker.time === candle.time);
     if (confirmationSignal) {
@@ -84,6 +88,7 @@ function findConfirmationSignal(candle, currentIndex, settings, analyses, htfAna
         if (poi) {
             const grabCandleTime = Object.keys(liquidityGrabs).reverse().find(time => Number(time) < candle.time && liquidityGrabs[time].some(g => (direction === 'LONG' ? g.text === 'SSL' : g.text === 'BSL')));
             if (grabCandleTime) {
+                // ** 核心修正: 使用傳入的 `candles` 參數 **
                 const grabCandle = candles.find(c => c.time === Number(grabCandleTime));
                 if (grabCandle) {
                     return { state: 'WAITING_FOR_ENTRY', type: direction === 'LONG' ? 'SSL_then_CHoCH' : 'BSL_then_CHoCH', direction, poi, protectionPoint: direction === 'LONG' ? grabCandle.low : grabCandle.high, creationIndex: currentIndex };
@@ -94,9 +99,11 @@ function findConfirmationSignal(candle, currentIndex, settings, analyses, htfAna
     return null;
 }
 
-function findRiskEntrySignal(candle, currentIndex, settings, analyses, htfAnalyses, poisForReaction) {
+// ** 核心修正: 接收 `candles` 參數 **
+function findRiskEntrySignal(candle, currentIndex, settings, analyses, htfAnalyses, poisForReaction, candles) {
     const { htfBias, entryScoreThreshold, rrRatio, rrRatioTP2, enableATR, atrMultiplier } = settings;
-    const { atr, candles } = analyses;
+    // ** 核心修正: 從 `analyses` 的解構中移除 `candles` **
+    const { atr } = analyses;
 
     for (const poi of poisForReaction) {
         if (poi.touched || poi.index >= currentIndex) continue;
@@ -105,6 +112,7 @@ function findRiskEntrySignal(candle, currentIndex, settings, analyses, htfAnalys
         
         const isTouched = (direction === 'LONG' && candle.low <= poi.top) || (direction === 'SHORT' && candle.high >= poi.bottom);
         if (isTouched) {
+            // ** 核心修正: 將 `candles` 傳遞給計分函式 **
             const score = calculateConfluenceScore(candle, poi, currentIndex, { ...analyses, candles }, htfAnalyses, settings);
             if (score >= entryScoreThreshold) {
                 poi.touched = true;
@@ -130,7 +138,8 @@ function findRiskEntrySignal(candle, currentIndex, settings, analyses, htfAnalys
     return null;
 }
 
-export function findSignal(candle, currentIndex, settings, analyses, htfAnalyses, poisForReaction) {
+// ** 核心修正: 接收 `candles` 參數並向下傳遞 **
+export function findSignal(candle, currentIndex, settings, analyses, htfAnalyses, poisForReaction, candles) {
     const { entryStrategy, enableKillzoneFilter, useLondonKillzone, useNewYorkKillzone } = settings;
 
     if (enableKillzoneFilter) {
@@ -142,9 +151,9 @@ export function findSignal(candle, currentIndex, settings, analyses, htfAnalyses
     }
 
     if (entryStrategy === 'reversal_confirmation') {
-        return findConfirmationSignal(candle, currentIndex, settings, analyses, htfAnalyses);
+        return findConfirmationSignal(candle, currentIndex, settings, analyses, htfAnalyses, candles);
     } else if (entryStrategy === 'poi_reaction') {
-        return findRiskEntrySignal(candle, currentIndex, settings, analyses, htfAnalyses, poisForReaction);
+        return findRiskEntrySignal(candle, currentIndex, settings, analyses, htfAnalyses, poisForReaction, candles);
     }
     return null;
 }
