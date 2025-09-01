@@ -14,6 +14,24 @@ import { setupChart, updateChartData, fitChart, redrawAllAnalyses } from './modu
 import { analyzeAll } from './modules/smc-analyzer.js';
 import { runBacktestSimulation } from './modules/backtester.js';
 import { initialState, saveCurrentSettings } from './modules/state-manager.js';
+import { optimizeParameters } from './modules/parameter-optimizer.js';
+import { DEFAULT_PARAM_RANGES, PARAM_GROUPS, OPTIMIZATION_TARGETS, OPTIMIZATION_ALGORITHMS, getParamDisplayName, getParamUnit, calculateCombinationCount } from './modules/optimization-config.js';
+import { processOptimizationResults, generateOptimizationRecommendations, exportResultsToCSV } from './modules/optimization-results.js';
+
+// 輔助函數
+function formatTime(seconds) {
+    if (seconds < 60) {
+        return `${Math.round(seconds)}秒`;
+    } else if (seconds < 3600) {
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.round(seconds % 60);
+        return `${minutes}分${remainingSeconds}秒`;
+    } else {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        return `${hours}小時${minutes}分`;
+    }
+}
 
 async function loadComponent(componentName, containerId) {
     try {
@@ -33,6 +51,7 @@ async function loadAllComponents() {
         <div id="help-modal-placeholder"></div>
         <div id="simulation-settings-modal-placeholder"></div>
         <div id="simulation-results-modal-placeholder"></div>
+        <div id="optimization-modal-placeholder"></div>
     `;
     document.getElementById('modals-container').innerHTML = modalComponents;
 
@@ -41,7 +60,8 @@ async function loadAllComponents() {
         loadComponent('header', 'header-container'),
         loadComponent('help-modal', 'help-modal-placeholder'),
         loadComponent('simulation-settings-modal', 'simulation-settings-modal-placeholder'),
-        loadComponent('simulation-results-modal', 'simulation-results-modal-placeholder')
+        loadComponent('simulation-results-modal', 'simulation-results-modal-placeholder'),
+        loadComponent('optimization-modal', 'optimization-modal-placeholder')
     ]);
 }
 
@@ -63,6 +83,26 @@ const appComponent = () => ({
     updateIntervalId: null,
     newCustomSymbol: '',
     visibleRange: null,
+
+    // --- 參數優化狀態 ---
+    isOptimizationModalOpen: false,
+    optimizationStep: 1,
+    selectedParams: [],
+    selectedParamGroups: [],
+    paramRanges: {},
+    optimizationTarget: 'netPnl',
+    optimizationAlgorithm: 'grid',
+    maxIterations: 1000,
+    isOptimizing: false,
+    optimizationProgress: 0,
+    currentTestCount: 0,
+    totalTestCount: 0,
+    currentBestScore: 0,
+    currentTestParams: null,
+    estimatedTimeRemaining: '',
+    optimizationResults: null,
+    paramSensitivity: {},
+    optimizationRecommendations: [],
     intervals: [
         { value: '1m', label: '1 分鐘' }, { value: '5m', label: '5 分鐘' },
         { value: '15m', label: '15 分鐘' }, { value: '1h', label: '1 小時' },
@@ -73,6 +113,38 @@ const appComponent = () => ({
     get availableHigherTimeframes() {
         const currentIndex = this.intervals.findIndex(i => i.value === this.interval);
         return this.intervals.slice(currentIndex + 1);
+    },
+
+    // --- 參數優化計算屬性 ---
+    get optimizationParamGroups() {
+        return PARAM_GROUPS;
+    },
+
+    get optimizationTargets() {
+        return OPTIMIZATION_TARGETS;
+    },
+
+    get optimizationAlgorithms() {
+        return OPTIMIZATION_ALGORITHMS;
+    },
+
+    getParamDisplayName(param) {
+        return getParamDisplayName(param);
+    },
+
+    getParamUnit(param) {
+        return getParamUnit(param);
+    },
+
+    calculateCombinationCountForParam(param) {
+        if (!this.paramRanges[param]) return 0;
+        const range = this.paramRanges[param];
+        return Math.floor((range.max - range.min) / range.step) + 1;
+    },
+
+    calculateTotalCombinations() {
+        if (this.selectedParams.length === 0) return 0;
+        return calculateCombinationCount(this.paramRanges);
     },
 
     // --- 初始化與監聽 ---
@@ -272,6 +344,158 @@ const appComponent = () => ({
             this.updateIntervalId = null;
         }
         this.autoUpdate = false;
+    },
+
+    // --- 參數優化方法 ---
+    openOptimizationModal() {
+        if (!this.isBacktestMode || this.currentCandles.length === 0) {
+            alert('請先在回測模式下載入歷史數據。');
+            return;
+        }
+
+        // 初始化參數範圍
+        this.paramRanges = {};
+        Object.keys(DEFAULT_PARAM_RANGES).forEach(param => {
+            this.paramRanges[param] = { ...DEFAULT_PARAM_RANGES[param] };
+        });
+
+        // 重置狀態
+        this.optimizationStep = 1;
+        this.selectedParams = [];
+        this.selectedParamGroups = [];
+        this.optimizationResults = null;
+        this.paramSensitivity = {};
+        this.optimizationRecommendations = [];
+        this.isOptimizationModalOpen = true;
+    },
+
+    startOptimization() {
+        if (this.selectedParams.length === 0) {
+            alert('請至少選擇一個參數進行優化。');
+            return;
+        }
+
+        this.isOptimizing = true;
+        this.optimizationStep = 4;
+        this.optimizationProgress = 0;
+        this.currentTestCount = 0;
+        this.currentBestScore = 0;
+        this.currentTestParams = null;
+        this.estimatedTimeRemaining = '';
+
+        // 準備優化配置
+        const paramRanges = {};
+        this.selectedParams.forEach(param => {
+            paramRanges[param] = this.paramRanges[param];
+        });
+
+        const config = {
+            paramRanges,
+            optimizationTarget: this.optimizationTarget,
+            maxIterations: this.optimizationAlgorithm === 'random' ? this.maxIterations : undefined
+        };
+
+        // 準備分析數據
+        const analysisSettings = {
+            enableTrendFilter: this.enableTrendFilter,
+            emaPeriod: this.emaPeriod,
+            enableATR: this.enableATR,
+            atrPeriod: this.atrPeriod,
+        };
+        const analyses = analyzeAll(this.currentCandles, analysisSettings);
+
+        let htfAnalyses = null;
+        if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
+            htfAnalyses = analyzeAll(this.higherTimeframeCandles, { enableTrendFilter: false, enableATR: false });
+        }
+
+        // 開始優化
+        const startTime = Date.now();
+        let lastProgressUpdate = startTime;
+
+        optimizeParameters(
+            config,
+            this.currentCandles,
+            this,
+            analyses,
+            htfAnalyses,
+            (progress) => {
+                this.optimizationProgress = progress.progress;
+                this.currentTestCount = progress.currentCombination;
+                this.totalTestCount = progress.totalCombinations;
+                this.currentBestScore = progress.bestScore;
+                this.currentTestParams = progress.currentParams;
+
+                // 估算剩餘時間
+                const currentTime = Date.now();
+                if (currentTime - lastProgressUpdate > 1000) { // 每秒更新一次
+                    const elapsed = (currentTime - startTime) / 1000;
+                    const progressRatio = progress.progress / 100;
+                    if (progressRatio > 0) {
+                        const totalEstimated = elapsed / progressRatio;
+                        const remaining = totalEstimated - elapsed;
+                        this.estimatedTimeRemaining = formatTime(remaining);
+                    }
+                    lastProgressUpdate = currentTime;
+                }
+            }
+        ).then(results => {
+            this.optimizationResults = results;
+            const processedResults = processOptimizationResults(results);
+            this.paramSensitivity = processedResults.statistics.paramCorrelations;
+            this.optimizationRecommendations = generateOptimizationRecommendations(processedResults);
+            this.optimizationStep = 5;
+        }).catch(error => {
+            console.error('參數優化失敗:', error);
+            this.error = `參數優化失敗: ${error.message}`;
+        }).finally(() => {
+            this.isOptimizing = false;
+        });
+    },
+
+    stopOptimization() {
+        // 由於 Web Worker 或其他異步操作的限制，這裡我們只是設置標記
+        // 在實際實現中，可能需要使用 AbortController 或其他機制
+        this.isOptimizing = false;
+        this.optimizationStep = 1;
+    },
+
+    applyBestParams() {
+        if (!this.optimizationResults?.bestResult?.params) {
+            alert('沒有可應用的最佳參數。');
+            return;
+        }
+
+        const bestParams = this.optimizationResults.bestResult.params;
+        Object.entries(bestParams).forEach(([param, value]) => {
+            if (param in this) {
+                this[param] = value;
+            }
+        });
+
+        alert('已應用最佳參數設定！');
+        this.isOptimizationModalOpen = false;
+    },
+
+    exportOptimizationResults() {
+        if (!this.optimizationResults) {
+            alert('沒有優化結果可匯出。');
+            return;
+        }
+
+        const csv = exportResultsToCSV(this.optimizationResults.results);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+
+        if (link.download !== undefined) {
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `optimization-results-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
     },
 });
 

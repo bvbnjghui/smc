@@ -79,6 +79,14 @@
                     <span>設定並執行模擬...</span>
                 </button>
             </div>
+
+            <!-- 參數優化區塊 -->
+            <div x-show="isBacktestMode" x-collapse class="space-y-4 pt-4 border-t border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-300">參數優化</h3>
+                <button @click="isOptimizationModalOpen = true; isSidebarOpen = false" :disabled="currentCandles.length === 0" class="w-full bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-purple-700 transition duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span>啟動參數優化...</span>
+                </button>
+            </div>
             
             <!-- 圖表顯示設定 -->
             <div class="space-y-4 pt-4 border-t border-gray-700">
