@@ -14,7 +14,7 @@
         <!-- 模態框內容 -->
         <div class="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
             <!-- 階段1: 參數選擇 -->
-            <div x-show="optimizationStep === 1" class="space-y-6">
+            <div x-show="parseInt(optimizationStep) === 1" class="space-y-6">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-300 mb-4">選擇要優化的參數</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -42,50 +42,94 @@
                     <button @click="isOptimizationModalOpen = false" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition duration-300">
                         取消
                     </button>
-                    <button @click="optimizationStep = 2" :disabled="selectedParams.length === 0" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button @click="ensureParamRangesIntegrity(); optimizationStep = 2" :disabled="selectedParams.length === 0" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
                         下一步
                     </button>
                 </div>
             </div>
 
             <!-- 階段2: 參數範圍設定 -->
-            <div x-show="optimizationStep === 2" class="space-y-6">
+            <div x-show="parseInt(optimizationStep) === 2" class="space-y-6">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-300 mb-4">設定參數範圍</h3>
                     <div class="space-y-4">
                         <template x-for="param in selectedParams" :key="param">
                             <div class="bg-gray-700 rounded-lg p-4">
-                                <div class="flex items-center justify-between mb-3">
-                                    <h4 class="font-medium text-gray-200" x-text="getParamDisplayName(param)"></h4>
-                                    <span class="text-sm text-gray-400" x-text="getParamUnit(param)"></span>
-                                </div>
+                                <h4 class="font-medium text-gray-200 mb-3" x-text="getParamDisplayName(param)"></h4>
                                 <div class="grid grid-cols-3 gap-4">
                                     <div>
                                         <label class="block text-sm text-gray-400 mb-1">最小值</label>
-                                        <input type="number" :id="'min-' + param" x-model.number="paramRanges[param].min" step="0.1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                                        <input type="number" :value="getParamRangeValue(param, 'min')" @input="setParamRangeValue(param, 'min', parseFloat($event.target.value) || 0)" step="0.1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
                                     </div>
                                     <div>
                                         <label class="block text-sm text-gray-400 mb-1">最大值</label>
-                                        <input type="number" :id="'max-' + param" x-model.number="paramRanges[param].max" step="0.1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                                        <input type="number" :value="getParamRangeValue(param, 'max')" @input="setParamRangeValue(param, 'max', parseFloat($event.target.value) || 0)" step="0.1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
                                     </div>
                                     <div>
                                         <label class="block text-sm text-gray-400 mb-1">步長</label>
-                                        <input type="number" :id="'step-' + param" x-model.number="paramRanges[param].step" step="0.1" min="0.1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                                        <input type="number" :value="getParamRangeValue(param, 'step')" @input="setParamRangeValue(param, 'step', parseFloat($event.target.value) || 0.1)" step="0.1" min="0.1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
                                     </div>
                                 </div>
                                 <div class="mt-2 text-xs text-gray-400">
-                                    預計組合數: <span x-text="calculateCombinationCountForParam(param)"></span>
+                                    參數組合數: <span x-text="calculateCombinationCountForParam(param)"></span>
                                 </div>
                             </div>
                         </template>
                     </div>
                 </div>
 
+                <!-- 優化設定 -->
+                <div class="bg-gray-700 rounded-lg p-4">
+                    <h4 class="font-medium text-gray-200 mb-3">優化設定</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">優化目標</label>
+                            <select x-model="optimizationTarget" class="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                                <template x-for="(target, key) in optimizationTargets" :key="key">
+                                    <option :value="key" x-text="target.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">優化算法</label>
+                            <select x-model="optimizationAlgorithm" class="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                                <template x-for="(algorithm, key) in optimizationAlgorithms" :key="key">
+                                    <option :value="key" x-text="algorithm.name"></option>
+                                </template>
+                            </select>
+                            <div class="mt-2 text-xs text-gray-400">
+                                <div x-show="optimizationAlgorithm === 'grid'" class="p-2 bg-blue-900/30 border border-blue-600 rounded">
+                                    <strong>網格搜索：</strong> 系統性測試所有參數組合，適合參數較少的情況，能找到全域性最優解
+                                </div>
+                                <div x-show="optimizationAlgorithm === 'random'" class="p-2 bg-purple-900/30 border border-purple-600 rounded">
+                                    <strong>隨機搜索：</strong> 從參數空間中隨機抽樣，能有效處理大量參數組合，適合探索性優化
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div x-show="optimizationAlgorithm === 'random'" class="mt-4">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">隨機測試次數</label>
+                        <input type="number" x-model.number="maxIterations" min="10" max="5000" step="50" class="w-full p-3 bg-gray-600 border border-gray-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                        <p class="text-xs text-gray-400 mt-1">
+                            隨機搜索將從參數空間中隨機選擇指定數量的組合進行測試。<br>
+                            • 建議值：100-500（快速優化）<br>
+                            • 較高值：1000+（更徹底的搜索）
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 總組合數估計 -->
                 <div class="bg-gray-700 rounded-lg p-4">
                     <h4 class="font-medium text-gray-200 mb-2">總組合數估計</h4>
-                    <p class="text-sm text-gray-400" x-text="'約 ' + calculateTotalCombinations() + ' 個參數組合'"></p>
-                    <div x-show="calculateTotalCombinations() > 1000" class="mt-2 p-2 bg-yellow-900/50 border border-yellow-600 rounded text-sm text-yellow-200">
-                        ⚠️ 組合數較多，建議使用隨機搜索或減少參數範圍
+                    <p class="text-sm text-gray-400" x-text="'約 ' + calculateTotalCombinations().toLocaleString() + ' 個參數組合'"></p>
+                    <div x-show="calculateTotalCombinations() > 10000" class="mt-2 p-2 bg-red-900/50 border border-red-600 rounded text-sm text-red-200">
+                        🚨 組合數過多，系統將自動使用隨機抽樣 (1000個樣本)
+                    </div>
+                    <div x-show="calculateTotalCombinations() > 1000 && calculateTotalCombinations() <= 10000" class="mt-2 p-2 bg-yellow-900/50 border border-yellow-600 rounded text-sm text-yellow-200">
+                        ⚠️ 組合數較多，建議使用隨機搜索以加快優化速度
+                    </div>
+                    <div x-show="calculateTotalCombinations() <= 1000" class="mt-2 p-2 bg-green-900/50 border border-green-600 rounded text-sm text-green-200">
+                        ✅ 組合數合理，可以使用網格搜索進行完整優化
                     </div>
                 </div>
 
@@ -93,79 +137,20 @@
                     <button @click="optimizationStep = 1" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition duration-300">
                         上一步
                     </button>
-                    <button @click="optimizationStep = 3" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition duration-300">
-                        下一步
-                    </button>
-                </div>
-            </div>
-
-            <!-- 階段3: 優化設定 -->
-            <div x-show="optimizationStep === 3" class="space-y-6">
-                <div>
-                    <h3 class="text-lg font-semibold text-gray-300 mb-4">優化設定</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300 mb-2">優化目標</label>
-                                <select x-model="optimizationTarget" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                                    <template x-for="(target, key) in optimizationTargets" :key="key">
-                                        <option :value="key" x-text="target.name"></option>
-                                    </template>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-300 mb-2">優化算法</label>
-                                <select x-model="optimizationAlgorithm" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                                    <template x-for="(algorithm, key) in optimizationAlgorithms" :key="key">
-                                        <option :value="key" x-text="algorithm.name"></option>
-                                    </template>
-                                </select>
-                            </div>
-
-                            <div x-show="optimizationAlgorithm === 'random'">
-                                <label class="block text-sm font-medium text-gray-300 mb-2">最大測試次數</label>
-                                <input type="number" x-model.number="maxIterations" min="10" max="10000" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
-                            </div>
-                        </div>
-
-                        <div class="bg-gray-700 rounded-lg p-4">
-                            <h4 class="font-medium text-gray-200 mb-3">優化摘要</h4>
-                            <div class="space-y-2 text-sm">
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">參數個數:</span>
-                                    <span class="text-gray-200" x-text="selectedParams.length"></span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">預計組合數:</span>
-                                    <span class="text-gray-200" x-text="calculateTotalCombinations()"></span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">優化目標:</span>
-                                    <span class="text-gray-200" x-text="optimizationTargets[optimizationTarget]?.name || optimizationTarget"></span>
-                                </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">算法:</span>
-                                    <span class="text-gray-200" x-text="optimizationAlgorithms[optimizationAlgorithm]?.name || optimizationAlgorithm"></span>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="space-x-3">
+                        <button @click="isOptimizationModalOpen = false" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition duration-300">
+                            取消
+                        </button>
+                        <button @click="startOptimization()" :disabled="isOptimizing" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-show="!isOptimizing">開始優化</span>
+                            <span x-show="isOptimizing">優化中...</span>
+                        </button>
                     </div>
                 </div>
-
-                <div class="flex justify-between">
-                    <button @click="optimizationStep = 2" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition duration-300">
-                        上一步
-                    </button>
-                    <button @click="startOptimization()" :disabled="isOptimizing" class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span x-show="!isOptimizing">開始優化</span>
-                        <span x-show="isOptimizing">優化中...</span>
-                    </button>
-                </div>
             </div>
 
-            <!-- 階段4: 優化進度 -->
-            <div x-show="optimizationStep === 4" class="space-y-6">
+            <!-- 階段3: 優化進度 -->
+            <div x-show="parseInt(optimizationStep) === 3" class="space-y-6" x-init="console.log('Stage 3 init, optimizationStep:', optimizationStep, 'type:', typeof optimizationStep)" x-effect="console.log('Stage 3 effect, optimizationStep:', optimizationStep, 'condition:', parseInt(optimizationStep) === 3)">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-300 mb-4">優化進度</h3>
                     <div class="bg-gray-700 rounded-lg p-4">
@@ -176,91 +161,83 @@
                         <div class="w-full bg-gray-600 rounded-full h-2">
                             <div class="bg-teal-500 h-2 rounded-full transition-all duration-300" :style="'width: ' + optimizationProgress + '%'"></div>
                         </div>
-                        <div class="mt-2 text-sm text-gray-400">
-                            <span x-text="'已測試: ' + currentTestCount + ' / ' + totalTestCount"></span>
-                        </div>
-                    </div>
-
-                    <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="bg-gray-700 rounded-lg p-3">
-                            <div class="text-sm text-gray-400">當前最佳分數</div>
-                            <div class="text-lg font-semibold text-teal-400" x-text="currentBestScore.toFixed(4)"></div>
-                        </div>
-                        <div class="bg-gray-700 rounded-lg p-3">
-                            <div class="text-sm text-gray-400">測試的參數組合</div>
-                            <div class="text-lg font-semibold text-blue-400" x-text="currentTestParams ? Object.keys(currentTestParams).length + ' 個參數' : 'N/A'"></div>
-                        </div>
-                        <div class="bg-gray-700 rounded-lg p-3">
-                            <div class="text-sm text-gray-400">預估剩餘時間</div>
-                            <div class="text-lg font-semibold text-purple-400" x-text="estimatedTimeRemaining"></div>
+                        <div class="mt-2 text-xs text-gray-400">
+                            <span x-text="'當前測試: ' + currentTestCombination + ' / ' + totalTestCombinations"></span>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex justify-end">
-                    <button @click="stopOptimization()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300">
-                        停止優化
+                <div class="flex justify-center">
+                    <button @click="cancelOptimization()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300">
+                        取消優化
                     </button>
                 </div>
             </div>
 
-            <!-- 階段5: 優化結果 -->
-            <div x-show="optimizationStep === 5" class="space-y-6">
+            <!-- 階段4: 優化結果 -->
+            <div x-show="parseInt(optimizationStep) === 4" class="space-y-6" x-init="console.log('Stage 4 init, optimizationStep:', optimizationStep, 'type:', typeof optimizationStep)" x-effect="console.log('Stage 4 effect, optimizationStep:', optimizationStep, 'condition:', parseInt(optimizationStep) === 4)">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-300 mb-4">優化結果</h3>
 
                     <!-- 最佳參數組合 -->
-                    <div class="bg-gray-700 rounded-lg p-4 mb-6">
+                    <div x-show="getBestResult()" class="bg-gray-700 rounded-lg p-4 mb-6" x-init="console.log('Best result div rendered', getBestResult())">
                         <h4 class="font-medium text-gray-200 mb-3">最佳參數組合</h4>
-                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            <template x-for="(value, param) in optimizationResults?.bestResult?.params" :key="param">
-                                <div class="bg-gray-600 rounded p-3">
-                                    <div class="text-sm text-gray-400" x-text="getParamDisplayName(param)"></div>
-                                    <div class="text-lg font-semibold text-teal-400" x-text="value + (getParamUnit(param) ? ' ' + getParamUnit(param) : '')"></div>
+                        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                            <template x-for="(value, param) in getBestParams()" :key="param">
+                                <div class="bg-gray-600 rounded p-3" x-init="console.log('Rendering param:', param, value)">
+                                    <div class="text-xs text-gray-400" x-text="getParamDisplayName(param)"></div>
+                                    <div class="text-sm text-gray-200 font-medium" x-text="value"></div>
                                 </div>
                             </template>
                         </div>
-                        <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div class="bg-gray-600 rounded p-3">
-                                <div class="text-sm text-gray-400">最佳分數</div>
-                                <div class="text-lg font-semibold text-green-400" x-text="optimizationResults?.bestResult?.score.toFixed(4)"></div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                                <div class="text-gray-400">最終權益</div>
+                                <div class="text-gray-200 font-medium" x-text="getBestResultValue('finalEquity', '$')"></div>
                             </div>
-                            <div class="bg-gray-600 rounded p-3">
-                                <div class="text-sm text-gray-400">勝率</div>
-                                <div class="text-lg font-semibold text-blue-400" x-text="optimizationResults?.bestResult?.results.winRate.toFixed(2) + '%'"></div>
+                            <div>
+                                <div class="text-gray-400">淨收益</div>
+                                <div class="text-gray-200 font-medium" x-text="getBestResultValue('netPnl', '$')"></div>
                             </div>
-                            <div class="bg-gray-600 rounded p-3">
-                                <div class="text-sm text-gray-400">淨收益</div>
-                                <div class="text-lg font-semibold text-purple-400" x-text="'$' + optimizationResults?.bestResult?.results.netPnl.toFixed(2)"></div>
+                            <div>
+                                <div class="text-gray-400">收益率</div>
+                                <div class="text-gray-200 font-medium" x-text="getBestResultValue('pnlPercent', '%')"></div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400">勝率</div>
+                                <div class="text-gray-200 font-medium" x-text="getBestResultValue('winRate', '%')"></div>
                             </div>
                         </div>
                     </div>
 
                     <!-- 參數敏感度分析 -->
-                    <div class="bg-gray-700 rounded-lg p-4 mb-6">
+                    <div x-show="hasParamSensitivity()" class="bg-gray-700 rounded-lg p-4 mb-6">
                         <h4 class="font-medium text-gray-200 mb-3">參數敏感度分析</h4>
                         <div class="space-y-2">
-                            <template x-for="(data, param) in paramSensitivity" :key="param">
+                            <template x-for="(data, param) in getParamSensitivity()" :key="param">
                                 <div class="flex items-center justify-between p-2 bg-gray-600 rounded">
                                     <span class="text-sm text-gray-300" x-text="getParamDisplayName(param)"></span>
                                     <div class="flex items-center space-x-2">
                                         <div class="w-24 bg-gray-500 rounded-full h-2">
-                                            <div class="bg-teal-500 h-2 rounded-full" :style="'width: ' + (data.impact * 100) + '%'"></div>
+                                            <div class="bg-teal-500 h-2 rounded-full" :style="'width: ' + getSensitivityBarWidth(data) + '%'"></div>
                                         </div>
-                                        <span class="text-xs text-gray-400" x-text="(data.impact * 100).toFixed(1) + '%'"></span>
+                                        <span class="text-sm text-gray-200 w-16 text-right" x-text="formatSensitivityValue(data)"></span>
                                     </div>
                                 </div>
                             </template>
                         </div>
+                        <div class="mt-3 text-xs text-gray-400">
+                            長條表示參數與目標值的相關強度，數值為相關係數的百分比表示
+                        </div>
                     </div>
 
                     <!-- 優化建議 -->
-                    <div x-show="optimizationRecommendations.length > 0" class="bg-gray-700 rounded-lg p-4">
+                    <div x-show="hasOptimizationRecommendations()" class="bg-gray-700 rounded-lg p-4">
                         <h4 class="font-medium text-gray-200 mb-3">優化建議</h4>
                         <div class="space-y-2">
-                            <template x-for="recommendation in optimizationRecommendations" :key="$index">
-                                <div class="p-3 rounded" :class="recommendation.priority === 'high' ? 'bg-red-900/50 border border-red-600' : 'bg-yellow-900/50 border border-yellow-600'">
-                                    <div class="text-sm" x-text="recommendation.message"></div>
+                            <template x-for="(recommendation, index) in getOptimizationRecommendations()" :key="index">
+                                <div class="p-3 rounded" :class="recommendation && recommendation.priority === 'high' ? 'bg-red-900/50 border border-red-600' : 'bg-yellow-900/50 border border-yellow-600'">
+                                    <div class="text-sm text-gray-200" x-text="recommendation ? recommendation.message : '載入中...'"></div>
                                 </div>
                             </template>
                         </div>
@@ -268,10 +245,13 @@
                 </div>
 
                 <div class="flex justify-between">
-                    <button @click="exportOptimizationResults()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300">
-                        匯出結果
+                    <button @click="optimizationStep = 2" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition duration-300">
+                        重新優化
                     </button>
                     <div class="space-x-3">
+                        <button @click="exportOptimizationResults()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300">
+                            匯出結果
+                        </button>
                         <button @click="applyBestParams()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
                             應用最佳參數
                         </button>

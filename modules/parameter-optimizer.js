@@ -83,15 +83,29 @@ export async function optimizeParameters(config, candles, baseSettings, analyses
     const combinations = generateParameterCombinations(paramRanges);
     console.log(`生成 ${combinations.length} 個參數組合`);
 
-    if (combinations.length > maxIterations) {
-        // 如果組合太多，使用隨機抽樣
+    // 處理隨機搜索或組合過多的情況
+    if (maxIterations && maxIterations > 0) {
+        // 如果指定了 maxIterations，始終使用隨機抽樣
         const sampledCombinations = [];
-        for (let i = 0; i < maxIterations; i++) {
+        const sampleSize = Math.min(maxIterations, combinations.length);
+
+        for (let i = 0; i < sampleSize; i++) {
             const randomIndex = Math.floor(Math.random() * combinations.length);
             sampledCombinations.push(combinations[randomIndex]);
         }
         combinations.splice(0, combinations.length, ...sampledCombinations);
-        console.log(`使用隨機抽樣，縮減至 ${maxIterations} 個組合`);
+        console.log(`使用隨機抽樣，選擇 ${sampleSize} 個參數組合`);
+    } else if (combinations.length > 10000) {
+        // 如果沒有指定 maxIterations 但組合太多，自動使用隨機抽樣
+        const sampledCombinations = [];
+        const sampleSize = Math.min(1000, combinations.length);
+
+        for (let i = 0; i < sampleSize; i++) {
+            const randomIndex = Math.floor(Math.random() * combinations.length);
+            sampledCombinations.push(combinations[randomIndex]);
+        }
+        combinations.splice(0, combinations.length, ...sampledCombinations);
+        console.log(`組合數過多，自動使用隨機抽樣，縮減至 ${sampleSize} 個組合`);
     }
 
     const results = [];
@@ -101,8 +115,15 @@ export async function optimizeParameters(config, candles, baseSettings, analyses
     for (let i = 0; i < combinations.length; i++) {
         const params = combinations[i];
 
-        // 合併參數到設定中
-        const testSettings = { ...baseSettings, ...params };
+        // 合併參數到設定中，只覆蓋指定的優化參數
+        const testSettings = { ...baseSettings };
+
+        // 只覆蓋用戶選擇要優化的參數
+        Object.keys(params).forEach(param => {
+            if (paramRanges[param]) { // 確保這是用戶選擇優化的參數
+                testSettings[param] = params[param];
+            }
+        });
 
         try {
             // 執行回測
@@ -188,19 +209,35 @@ export function analyzeParameterSensitivity(results) {
         const paramValues = results.map(r => r.params[paramName]);
         const scores = results.map(r => r.score);
 
-        // 計算相關係數
-        const correlation = calculateCorrelation(paramValues, scores);
-
-        // 計算參數範圍
+        // 檢查參數值是否有變化
         const min = Math.min(...paramValues);
         const max = Math.max(...paramValues);
         const range = max - min;
 
+        // 如果參數值沒有變化，無法計算相關性
+        if (range === 0) {
+            sensitivity[paramName] = {
+                correlation: 0,
+                range: 0,
+                impact: 0,
+                direction: 'neutral',
+                interpretation: '參數值無變化'
+            };
+            return;
+        }
+
+        // 計算相關係數
+        const correlation = calculateCorrelation(paramValues, scores);
+
+        // 檢查相關係數是否有效
+        const validCorrelation = isNaN(correlation) ? 0 : correlation;
+
         sensitivity[paramName] = {
-            correlation: Math.abs(correlation),
+            correlation: Math.abs(validCorrelation),
             range,
-            impact: Math.abs(correlation) * range,
-            direction: correlation > 0 ? 'positive' : 'negative'
+            impact: Math.abs(validCorrelation) * range,
+            direction: validCorrelation > 0 ? 'positive' : 'negative',
+            interpretation: interpretCorrelation(validCorrelation)
         };
     });
 
@@ -215,6 +252,10 @@ export function analyzeParameterSensitivity(results) {
  */
 function calculateCorrelation(x, y) {
     const n = x.length;
+
+    // 檢查數據長度
+    if (n < 2) return 0;
+
     const sumX = x.reduce((a, b) => a + b, 0);
     const sumY = y.reduce((a, b) => a + b, 0);
     const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
@@ -224,7 +265,28 @@ function calculateCorrelation(x, y) {
     const numerator = n * sumXY - sumX * sumY;
     const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
 
-    return denominator === 0 ? 0 : numerator / denominator;
+    // 檢查分母是否為 0 或 NaN
+    if (denominator === 0 || isNaN(denominator) || !isFinite(denominator)) {
+        return 0;
+    }
+
+    const correlation = numerator / denominator;
+
+    // 檢查結果是否有效
+    return isNaN(correlation) || !isFinite(correlation) ? 0 : correlation;
+}
+
+/**
+ * 解釋相關係數
+ * @param {number} correlation - 相關係數
+ * @returns {string} 解釋文字
+ */
+function interpretCorrelation(correlation) {
+    const absCorr = Math.abs(correlation);
+    if (absCorr >= 0.8) return '強相關';
+    if (absCorr >= 0.6) return '中等相關';
+    if (absCorr >= 0.3) return '弱相關';
+    return '無顯著相關';
 }
 
 /**

@@ -92,10 +92,12 @@ const appComponent = () => ({
     paramRanges: {},
     optimizationTarget: 'netPnl',
     optimizationAlgorithm: 'grid',
-    maxIterations: 1000,
+    maxIterations: 200,
     isOptimizing: false,
     optimizationProgress: 0,
     currentTestCount: 0,
+    currentTestCombination: 0,
+    totalTestCombinations: 0,
     totalTestCount: 0,
     currentBestScore: 0,
     currentTestParams: null,
@@ -147,6 +149,230 @@ const appComponent = () => ({
         return calculateCombinationCount(this.paramRanges);
     },
 
+    // 確保參數範圍的完整性
+    ensureParamRangesIntegrity() {
+        if (!this.paramRanges) {
+            this.paramRanges = {};
+        }
+
+        // 確保所有選中的參數都有範圍設定
+        this.selectedParams.forEach(param => {
+            if (!this.paramRanges[param]) {
+                if (DEFAULT_PARAM_RANGES[param]) {
+                    this.paramRanges[param] = { ...DEFAULT_PARAM_RANGES[param] };
+                } else {
+                    // 如果沒有預設值，設置一個安全的預設值
+                    this.paramRanges[param] = { min: 0, max: 10, step: 1, default: 1 };
+                }
+            }
+        });
+    },
+
+    // 安全的參數範圍值訪問器
+    getParamRangeValue(param, property) {
+        if (!this.paramRanges || !this.paramRanges[param]) {
+            this.ensureParamRangesIntegrity();
+        }
+
+        if (this.paramRanges[param] && this.paramRanges[param][property] !== undefined) {
+            return this.paramRanges[param][property];
+        }
+
+        // 返回預設值
+        const defaults = { min: 0, max: 10, step: 1 };
+        return defaults[property] || 0;
+    },
+
+    // 設定參數範圍值
+    setParamRangeValue(param, property, value) {
+        if (!this.paramRanges) {
+            this.paramRanges = {};
+        }
+
+        if (!this.paramRanges[param]) {
+            // 初始化參數範圍
+            if (DEFAULT_PARAM_RANGES[param]) {
+                this.paramRanges[param] = { ...DEFAULT_PARAM_RANGES[param] };
+            } else {
+                this.paramRanges[param] = { min: 0, max: 10, step: 1, default: 1 };
+            }
+        }
+
+        this.paramRanges[param][property] = value;
+    },
+
+    // 格式化參數敏感度值
+    formatSensitivityValue(data) {
+        if (!data || typeof data.correlation !== 'number') {
+            return '無數據';
+        }
+
+        if (isNaN(data.correlation) || !isFinite(data.correlation)) {
+            // 檢查是否有足夠的數據點
+            if (this.optimizationResults && this.optimizationResults.results &&
+                this.optimizationResults.results.length < 2) {
+                return '數據不足';
+            }
+            return '計算錯誤';
+        }
+
+        const percentage = (data.correlation * 100).toFixed(1);
+        return percentage + '%';
+    },
+
+    // 安全獲取最佳參數
+    getBestParams() {
+        console.log('getBestParams called', {
+            hasResults: !!this.optimizationResults,
+            hasBestResult: !!(this.optimizationResults && this.optimizationResults.bestResult),
+            hasParams: !!(this.optimizationResults && this.optimizationResults.bestResult && this.optimizationResults.bestResult.params),
+            params: this.optimizationResults?.bestResult?.params,
+            totalResults: this.optimizationResults?.results?.length || 0
+        });
+
+        if (this.optimizationResults &&
+            this.optimizationResults.bestResult &&
+            this.optimizationResults.bestResult.params) {
+            return this.optimizationResults.bestResult.params;
+        }
+        return {};
+    },
+
+    // 安全獲取最佳結果
+    getBestResult() {
+        console.log('getBestResult called', {
+            hasResults: !!this.optimizationResults,
+            hasBestResult: !!(this.optimizationResults && this.optimizationResults.bestResult),
+            bestResult: this.optimizationResults?.bestResult
+        });
+
+        if (this.optimizationResults && this.optimizationResults.bestResult) {
+            return this.optimizationResults.bestResult;
+        }
+        return null;
+    },
+
+    // 安全獲取優化結果
+    getOptimizationResults() {
+        return this.optimizationResults || null;
+    },
+
+    // 安全獲取最佳結果數值
+    getBestResultValue(field, suffix = '') {
+        const bestResult = this.getBestResult();
+        if (bestResult && bestResult.results && typeof bestResult.results[field] === 'number') {
+            const value = bestResult.results[field];
+            if (suffix === '$') {
+                return '$' + value.toFixed(2);
+            } else if (suffix === '%') {
+                return value.toFixed(2) + '%';
+            } else {
+                return value.toFixed(2);
+            }
+        }
+        return 'N/A';
+    },
+
+    // 檢查是否有參數敏感度數據
+    hasParamSensitivity() {
+        return this.paramSensitivity && Object.keys(this.paramSensitivity).length > 0;
+    },
+
+    // 檢查是否有優化建議
+    hasOptimizationRecommendations() {
+        return this.optimizationRecommendations && this.optimizationRecommendations.length > 0;
+    },
+
+    // 安全獲取優化建議
+    getOptimizationRecommendations() {
+        return this.optimizationRecommendations || [];
+    },
+
+    // 安全獲取參數敏感度
+    getParamSensitivity() {
+        return this.paramSensitivity || {};
+    },
+
+    // 獲取敏感度條寬度
+    getSensitivityBarWidth(data) {
+        if (data && !isNaN(data.correlation)) {
+            return Math.min(Math.abs(data.correlation) * 100, 100);
+        }
+        return 0;
+    },
+
+    // 取消優化
+    cancelOptimization() {
+        this.isOptimizing = false;
+        this.optimizationProgress = 0;
+        this.currentTestCombination = 0;
+        this.totalTestCombinations = 0;
+        this.optimizationStep = 2; // 返回到設定階段
+        console.log('Optimization cancelled, step set to:', this.optimizationStep);
+    },
+
+    // 匯出優化結果
+    exportOptimizationResults() {
+        if (!this.optimizationResults) {
+            alert('沒有優化結果可以匯出。');
+            return;
+        }
+
+        // 簡單的 CSV 匯出實現
+        const results = this.optimizationResults.results;
+        if (!results || results.length === 0) {
+            alert('沒有結果數據可以匯出。');
+            return;
+        }
+
+        const headers = ['參數', '分數', '勝率%', '淨收益$', '總交易數'];
+        const rows = results.slice(0, 100).map(result => {
+            const params = Object.entries(result.params).map(([key, value]) => `${key}=${value}`).join('; ');
+            return [
+                params,
+                result.score.toFixed(4),
+                `${result.results.winRate.toFixed(2)}%`,
+                `$${result.results.netPnl.toFixed(2)}`,
+                result.results.totalTrades
+            ];
+        });
+
+        const csvContent = [headers, ...rows]
+            .map(row => row.map(cell => `"${cell}"`).join(','))
+            .join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `optimization-results-${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    },
+
+    // 應用最佳參數
+    applyBestParams() {
+        if (!this.optimizationResults || !this.optimizationResults.bestResult) {
+            alert('沒有最佳參數可以應用。');
+            return;
+        }
+
+        const bestParams = this.optimizationResults.bestResult.params;
+        Object.entries(bestParams).forEach(([param, value]) => {
+            if (param in this) {
+                this[param] = value;
+            }
+        });
+
+        // 保存設定
+        saveCurrentSettings(this);
+
+        alert('已應用最佳參數設定！');
+        this.isOptimizationModalOpen = false;
+    },
+
     // --- 初始化與監聽 ---
     init() {
         console.log('Alpine component initialized.');
@@ -169,6 +395,14 @@ const appComponent = () => ({
                     }
                 }
             });
+        });
+
+        // 監聽參數優化相關的狀態變化
+        this.$watch('selectedParams', (newParams, oldParams) => {
+            // 確保新選擇的參數有範圍設定
+            if (newParams && newParams.length > 0) {
+                this.ensureParamRangesIntegrity();
+            }
         });
 
         this.fetchData();
@@ -353,7 +587,7 @@ const appComponent = () => ({
             return;
         }
 
-        // 初始化參數範圍
+        // 初始化參數範圍 - 確保所有參數都有範圍設定
         this.paramRanges = {};
         Object.keys(DEFAULT_PARAM_RANGES).forEach(param => {
             this.paramRanges[param] = { ...DEFAULT_PARAM_RANGES[param] };
@@ -375,10 +609,34 @@ const appComponent = () => ({
             return;
         }
 
+        // 檢查是否至少選擇了2個參數以獲得有效的參數敏感度分析
+        if (this.selectedParams.length < 2) {
+            alert('建議至少選擇2個參數進行優化，以獲得有效的參數敏感度分析。\n\n如果只選擇1個參數，敏感度分析將顯示"數據不足"。');
+        }
+
+        // 檢查參數範圍是否有效
+        const invalidRanges = this.selectedParams.filter(param => {
+            const range = this.paramRanges[param];
+            if (!range) return true;
+            return range.min === range.max;
+        });
+
+        if (invalidRanges.length > 0) {
+            alert(`以下參數的範圍無效（最小值等於最大值）：\n${invalidRanges.join('\n')}\n\n請調整參數範圍以包含多個值。`);
+            return;
+        }
+
+        // 確保參數範圍完整性
+        this.ensureParamRangesIntegrity();
+
+        console.log('Setting optimizationStep to 3');
         this.isOptimizing = true;
-        this.optimizationStep = 4;
+        this.optimizationStep = 3; // 設置為進度階段
         this.optimizationProgress = 0;
+        console.log('optimizationStep is now:', this.optimizationStep);
         this.currentTestCount = 0;
+        this.currentTestCombination = 0;
+        this.totalTestCombinations = 0;
         this.currentBestScore = 0;
         this.currentTestParams = null;
         this.estimatedTimeRemaining = '';
@@ -386,13 +644,18 @@ const appComponent = () => ({
         // 準備優化配置
         const paramRanges = {};
         this.selectedParams.forEach(param => {
-            paramRanges[param] = this.paramRanges[param];
+            if (this.paramRanges[param]) {
+                paramRanges[param] = this.paramRanges[param];
+            } else {
+                console.warn(`參數 ${param} 沒有範圍設定，使用預設值`);
+                paramRanges[param] = { min: 0, max: 10, step: 1 };
+            }
         });
 
         const config = {
             paramRanges,
             optimizationTarget: this.optimizationTarget,
-            maxIterations: this.optimizationAlgorithm === 'random' ? this.maxIterations : undefined
+            maxIterations: this.optimizationAlgorithm === 'random' ? this.maxIterations : (this.calculateTotalCombinations() > 10000 ? 1000 : undefined)
         };
 
         // 準備分析數據
@@ -409,6 +672,29 @@ const appComponent = () => ({
             htfAnalyses = analyzeAll(this.higherTimeframeCandles, { enableTrendFilter: false, enableATR: false });
         }
 
+        // 創建完整的 baseSettings，確保包含所有必要的屬性
+        const baseSettings = {
+            // 從當前實例複製所有屬性
+            ...this,
+            // 確保關鍵屬性存在
+            entryStrategy: this.entryStrategy || 'reversal_confirmation',
+            htfBias: this.htfBias || 'both',
+            investmentAmount: this.investmentAmount || 10000,
+            riskPerTrade: this.riskPerTrade || 1,
+            rrRatio: this.rrRatio || 2,
+            rrRatioTP2: this.rrRatioTP2 || 3,
+            enableBreakeven: this.enableBreakeven !== undefined ? this.enableBreakeven : true,
+            setupExpirationCandles: this.setupExpirationCandles || 30,
+            enableKillzoneFilter: this.enableKillzoneFilter || false,
+            useLondonKillzone: this.useLondonKillzone || true,
+            useNewYorkKillzone: this.useNewYorkKillzone || true
+        };
+
+        // 設置總測試組合數
+        this.totalTestCombinations = this.optimizationAlgorithm === 'random'
+            ? this.maxIterations
+            : Math.min(this.calculateTotalCombinations(), 10000);
+
         // 開始優化
         const startTime = Date.now();
         let lastProgressUpdate = startTime;
@@ -416,12 +702,13 @@ const appComponent = () => ({
         optimizeParameters(
             config,
             this.currentCandles,
-            this,
+            baseSettings,
             analyses,
             htfAnalyses,
             (progress) => {
                 this.optimizationProgress = progress.progress;
                 this.currentTestCount = progress.currentCombination;
+                this.currentTestCombination = progress.currentCombination;
                 this.totalTestCount = progress.totalCombinations;
                 this.currentBestScore = progress.bestScore;
                 this.currentTestParams = progress.currentParams;
@@ -444,7 +731,8 @@ const appComponent = () => ({
             const processedResults = processOptimizationResults(results);
             this.paramSensitivity = processedResults.statistics.paramCorrelations;
             this.optimizationRecommendations = generateOptimizationRecommendations(processedResults);
-            this.optimizationStep = 5;
+            this.optimizationStep = 4;
+            console.log('Optimization completed, step set to:', this.optimizationStep);
         }).catch(error => {
             console.error('參數優化失敗:', error);
             this.error = `參數優化失敗: ${error.message}`;
@@ -458,6 +746,7 @@ const appComponent = () => ({
         // 在實際實現中，可能需要使用 AbortController 或其他機制
         this.isOptimizing = false;
         this.optimizationStep = 1;
+        console.log('Optimization failed, step reset to:', this.optimizationStep);
     },
 
     applyBestParams() {
