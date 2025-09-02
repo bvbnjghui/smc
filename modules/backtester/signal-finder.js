@@ -63,9 +63,7 @@ function calculateConfluenceScore(candle, poi, currentIndex, analyses, htfAnalys
         }
     }
     
-    if (score > 0) {
-        console.log(`%c[Score Calculation] Time: ${new Date(candle.time * 1000).toLocaleString()}, POI Type: ${poi.poiType}, Score: ${score} (${scoreDetails.join(' + ')})`, 'color: #2dd4bf');
-    }
+    // 分數計算完成
     return score;
 }
 

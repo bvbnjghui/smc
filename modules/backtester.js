@@ -12,8 +12,7 @@ export function runBacktestSimulation(params) {
     const { candles, settings, analyses, htfAnalyses } = params;
     const { investmentAmount, riskPerTrade } = settings;
 
-    console.log(`--- 開始策略回測模擬 (Strategy: ${settings.entryStrategy}) ---`);
-    console.log("初始設定:", settings);
+    // 開始策略回測模擬
 
     let equity = investmentAmount;
     const trades = [];
@@ -87,8 +86,7 @@ export function runBacktestSimulation(params) {
         trades,
     };
 
-    console.log("--- 回測模擬結束 ---");
-    console.log("最終結果:", results);
+    // 回測模擬結束
 
     return results;
 }

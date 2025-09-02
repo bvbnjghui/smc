@@ -138,6 +138,15 @@ const appComponent = () => ({
         return getParamUnit(param);
     },
 
+    // 檢查參數是否應該是整數
+    isIntegerParam(param) {
+        const integerParams = [
+            'obWeight', 'breakerWeight', 'mtaWeight', 'emaWeight', 'liquidityGrabWeight', 'inducementWeight',
+            'entryScoreThreshold', 'emaPeriod', 'atrPeriod', 'recentLiquidityGrabLookback', 'setupExpirationCandles'
+        ];
+        return integerParams.includes(param);
+    },
+
     calculateCombinationCountForParam(param) {
         if (!this.paramRanges[param]) return 0;
         const range = this.paramRanges[param];
@@ -175,12 +184,22 @@ const appComponent = () => ({
         }
 
         if (this.paramRanges[param] && this.paramRanges[param][property] !== undefined) {
-            return this.paramRanges[param][property];
+            const value = this.paramRanges[param][property];
+            // 對於整數參數，確保返回整數值
+            if (this.isIntegerParam(param)) {
+                return Math.round(value);
+            }
+            return value;
         }
 
         // 返回預設值
         const defaults = { min: 0, max: 10, step: 1 };
-        return defaults[property] || 0;
+        const defaultValue = defaults[property] || 0;
+        // 對於整數參數的預設值也要是整數
+        if (this.isIntegerParam(param)) {
+            return Math.round(defaultValue);
+        }
+        return defaultValue;
     },
 
     // 設定參數範圍值
@@ -198,7 +217,12 @@ const appComponent = () => ({
             }
         }
 
-        this.paramRanges[param][property] = value;
+        // 對於整數參數，確保值是整數
+        if (this.isIntegerParam(param)) {
+            this.paramRanges[param][property] = Math.round(value);
+        } else {
+            this.paramRanges[param][property] = value;
+        }
     },
 
     // 格式化參數敏感度值
@@ -222,14 +246,6 @@ const appComponent = () => ({
 
     // 安全獲取最佳參數
     getBestParams() {
-        console.log('getBestParams called', {
-            hasResults: !!this.optimizationResults,
-            hasBestResult: !!(this.optimizationResults && this.optimizationResults.bestResult),
-            hasParams: !!(this.optimizationResults && this.optimizationResults.bestResult && this.optimizationResults.bestResult.params),
-            params: this.optimizationResults?.bestResult?.params,
-            totalResults: this.optimizationResults?.results?.length || 0
-        });
-
         if (this.optimizationResults &&
             this.optimizationResults.bestResult &&
             this.optimizationResults.bestResult.params) {
@@ -240,12 +256,6 @@ const appComponent = () => ({
 
     // 安全獲取最佳結果
     getBestResult() {
-        console.log('getBestResult called', {
-            hasResults: !!this.optimizationResults,
-            hasBestResult: !!(this.optimizationResults && this.optimizationResults.bestResult),
-            bestResult: this.optimizationResults?.bestResult
-        });
-
         if (this.optimizationResults && this.optimizationResults.bestResult) {
             return this.optimizationResults.bestResult;
         }
@@ -310,7 +320,6 @@ const appComponent = () => ({
         this.totalTestCombinations = 0;
         this.totalTestCount = 0;
         this.optimizationStep = 2; // 返回到設定階段
-        console.log('Optimization cancelled, step set to:', this.optimizationStep);
     },
 
     // 匯出優化結果
@@ -377,7 +386,6 @@ const appComponent = () => ({
 
     // --- 初始化與監聽 ---
     init() {
-        console.log('Alpine component initialized.');
         setupChart('chart', this.onVisibleRangeChanged.bind(this));
 
         // ** 核心修正: 整合所有設定的監聽與保存邏輯 **
@@ -385,7 +393,6 @@ const appComponent = () => ({
             this.$watch(key, (newValue, oldValue) => {
                 // 1. 無論哪個設定變更，都先保存所有設定
                 saveCurrentSettings(this);
-                console.log(`%c[Settings Saved] '${key}' changed. All settings have been persisted.`, 'color: #10b981');
 
                 // 2. 根據變更的特定設定，執行對應的副作用
                 if (key === 'isBacktestMode' && !newValue) {
@@ -416,7 +423,6 @@ const appComponent = () => ({
         });
 
         this.fetchData();
-        console.log('Initial data fetch initiated.');
     },
 
     // --- 方法 (Methods) ---
@@ -642,18 +648,14 @@ const appComponent = () => ({
         // 確保參數範圍完整性
         this.ensureParamRangesIntegrity();
 
-        console.log('Setting optimizationStep to 3');
         this.isOptimizing = true;
         this.optimizationStep = 3; // 設置為進度階段
         this.optimizationProgress = 0;
-        console.log('optimizationStep is now:', this.optimizationStep);
 
         // 強制觸發UI更新並添加小延遲確保渲染
         this.$nextTick(() => {
-            console.log('UI updated, optimizationStep:', this.optimizationStep, 'isOptimizing:', this.isOptimizing);
             // 使用setTimeout確保UI完全渲染，然後執行優化邏輯
             setTimeout(() => {
-                console.log('Starting optimization after UI update');
 
                 // 初始化優化變數
                 this.currentTestCount = 0;
@@ -788,7 +790,6 @@ const appComponent = () => ({
                     this.paramSensitivity = processedResults.statistics.paramCorrelations;
                     this.optimizationRecommendations = generateOptimizationRecommendations(processedResults);
                     this.optimizationStep = 4;
-                    console.log('Optimization completed, step set to:', this.optimizationStep);
                 }).catch(error => {
                     console.error('參數優化失敗:', error);
                     this.error = `參數優化失敗: ${error.message}`;
@@ -804,7 +805,6 @@ const appComponent = () => ({
         // 在實際實現中，可能需要使用 AbortController 或其他機制
         this.isOptimizing = false;
         this.optimizationStep = 1;
-        console.log('Optimization failed, step reset to:', this.optimizationStep);
     },
 
     applyBestParams() {
@@ -898,15 +898,12 @@ const appComponent = () => ({
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('DOM 已載入，開始載入元件...');
     await loadAllComponents();
-    console.log('所有元件已載入。');
 
     Alpine.plugin(anchor);
     Alpine.plugin(collapse);
     Alpine.data('app', appComponent);
-    
+
     window.Alpine = Alpine;
     Alpine.start();
-    console.log('Alpine.js 已啟動。');
 });

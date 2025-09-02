@@ -5,16 +5,13 @@ const app = express();
 const port = process.env.PORT || 8080;
 
 app.use(cors());
-console.log('CORS middleware enabled for all origins.');
 
 app.get('/', (req, res) => {
-  console.log('Health check endpoint was hit.');
   res.status(200).send('SMC API Server is running and healthy!');
 });
 
 // API 路由：獲取即時 K 線數據 (最近 500 根)
 app.get('/api/klines', async (req, res) => {
-  console.log('Received request for /api/klines with query:', req.query);
   const { symbol, interval, limit = 500 } = req.query;
 
   if (!symbol || !interval) {
@@ -37,7 +34,6 @@ app.get('/api/klines', async (req, res) => {
 
 // ** 修改: API 路由，用於獲取歷史 K 線數據 (回測用)，加入分頁邏輯 **
 app.get('/api/historical-klines', async (req, res) => {
-  console.log('Received request for /api/historical-klines with query:', req.query);
   const { symbol, interval, startTime, endTime } = req.query;
 
   if (!symbol || !interval || !startTime || !endTime) {
@@ -53,7 +49,6 @@ app.get('/api/historical-klines', async (req, res) => {
     while (lastCandleTime < Number(endTime)) {
       const binanceUrl = `https://api.binance.com/api/v3/klines?symbol=${symbol.toUpperCase()}&interval=${interval}&startTime=${lastCandleTime}&endTime=${endTime}&limit=${limit}`;
       
-      console.log(`Fetching from Binance: ${binanceUrl}`);
       const response = await fetch(binanceUrl);
       const data = await response.json();
 
@@ -73,7 +68,6 @@ app.get('/api/historical-klines', async (req, res) => {
       lastCandleTime = lastKlineInBatch[0] + 1; // 使用開盤時間 kline[0] + 1ms 作為下一次的起點
     }
 
-    console.log(`Fetched a total of ${allKlines.length} historical klines.`);
     res.status(200).json(allKlines);
 
   } catch (error) {

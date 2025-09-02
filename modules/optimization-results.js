@@ -265,21 +265,41 @@ export function generateOptimizationRecommendations(processedResults) {
     const { summary, statistics } = processedResults;
     const recommendations = [];
 
-    // 基於相關性分析的建議
+    // 基於相關性分析的建議 - 降低閾值並增加解釋
     if (statistics.paramCorrelations) {
         Object.entries(statistics.paramCorrelations)
             .sort(([, a], [, b]) => b.strength - a.strength)
-            .slice(0, 3)
+            .slice(0, 5) // 增加建議數量
             .forEach(([param, data]) => {
-                if (data.strength > 0.5) {
+                if (data.strength > 0.2) { // 降低閾值到弱相關
                     const direction = data.direction === 'positive' ? '增加' : '減少';
                     const displayName = getParamDisplayName(param);
+                    let priority = 'low';
+                    let message = '';
+
+                    if (data.strength > 0.7) {
+                        priority = 'high';
+                        message = `${direction} ${displayName} 可能會顯著改善表現 (${data.interpretation})`;
+                    } else if (data.strength > 0.5) {
+                        priority = 'medium';
+                        message = `${direction} ${displayName} 可能會改善表現 (${data.interpretation})`;
+                    } else {
+                        priority = 'low';
+                        message = `考慮 ${direction} ${displayName} 進行測試 (${data.interpretation})`;
+                    }
+
+                    // 添加更詳細的解釋
+                    if (Math.abs(data.correlation) > 0.3) {
+                        message += '\n注意：相關性分析可能無法捕捉參數間的複雜交互作用，建議結合其他參數一起調整';
+                    }
+
                     recommendations.push({
                         type: 'parameter',
-                        priority: 'high',
-                        message: `${direction} ${displayName} 可能會顯著改善表現 (${data.interpretation})`,
+                        priority,
+                        message,
                         param,
-                        correlation: data.correlation
+                        correlation: data.correlation,
+                        strength: data.strength
                     });
                 }
             });
@@ -302,6 +322,13 @@ export function generateOptimizationRecommendations(processedResults) {
             message: '測試樣本較少，建議增加測試次數以獲得更可靠的結果'
         });
     }
+
+    // 添加一般性建議
+    recommendations.push({
+        type: 'general',
+        priority: 'medium',
+        message: '參數優化結果僅供參考，建議在不同市場條件下重新測試，並考慮參數間的交互作用'
+    });
 
     return recommendations;
 }

@@ -77,11 +77,10 @@ function calculateOptimizationScore(results, optimizationTarget) {
 export async function optimizeParameters(config, candles, baseSettings, analyses, htfAnalyses, onProgress) {
     const { paramRanges, optimizationTarget, maxIterations } = config;
 
-    console.log('開始參數優化...', { paramRanges, optimizationTarget, maxIterations });
+    // 開始參數優化
 
     // 生成所有參數組合
     const combinations = generateParameterCombinations(paramRanges);
-    console.log(`生成 ${combinations.length} 個參數組合`);
 
     // 處理隨機搜索或組合過多的情況
     if (maxIterations && maxIterations > 0) {
@@ -94,7 +93,6 @@ export async function optimizeParameters(config, candles, baseSettings, analyses
             sampledCombinations.push(combinations[randomIndex]);
         }
         combinations.splice(0, combinations.length, ...sampledCombinations);
-        console.log(`使用隨機抽樣，選擇 ${sampleSize} 個參數組合`);
     } else if (combinations.length > 10000) {
         // 如果沒有指定 maxIterations 但組合太多，自動使用隨機抽樣
         const sampledCombinations = [];
@@ -105,7 +103,6 @@ export async function optimizeParameters(config, candles, baseSettings, analyses
             sampledCombinations.push(combinations[randomIndex]);
         }
         combinations.splice(0, combinations.length, ...sampledCombinations);
-        console.log(`組合數過多，自動使用隨機抽樣，縮減至 ${sampleSize} 個組合`);
     }
 
     return new Promise((resolve, reject) => {
@@ -195,11 +192,7 @@ export async function optimizeParameters(config, candles, baseSettings, analyses
                     timestamp: new Date().toISOString()
                 };
 
-                console.log('參數優化完成', {
-                    bestScore,
-                    bestParams: bestResult?.params,
-                    totalTests: results.length
-                });
+                // 參數優化完成
 
                 resolve(optimizationResults);
             } else {

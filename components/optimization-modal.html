@@ -59,15 +59,15 @@
                                 <div class="grid grid-cols-3 gap-4">
                                     <div>
                                         <label class="block text-sm text-gray-400 mb-1">最小值</label>
-                                        <input type="number" :value="getParamRangeValue(param, 'min')" @input="setParamRangeValue(param, 'min', parseFloat($event.target.value) || 0)" step="0.1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                                        <input type="number" :value="getParamRangeValue(param, 'min')" @input="setParamRangeValue(param, 'min', parseFloat($event.target.value) || 0)" :step="isIntegerParam(param) ? '1' : '0.1'" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
                                     </div>
                                     <div>
                                         <label class="block text-sm text-gray-400 mb-1">最大值</label>
-                                        <input type="number" :value="getParamRangeValue(param, 'max')" @input="setParamRangeValue(param, 'max', parseFloat($event.target.value) || 0)" step="0.1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                                        <input type="number" :value="getParamRangeValue(param, 'max')" @input="setParamRangeValue(param, 'max', parseFloat($event.target.value) || 0)" :step="isIntegerParam(param) ? '1' : '0.1'" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
                                     </div>
                                     <div>
                                         <label class="block text-sm text-gray-400 mb-1">步長</label>
-                                        <input type="number" :value="getParamRangeValue(param, 'step')" @input="setParamRangeValue(param, 'step', parseFloat($event.target.value) || 0.1)" step="0.1" min="0.1" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
+                                        <input type="number" :value="getParamRangeValue(param, 'step')" @input="setParamRangeValue(param, 'step', parseFloat($event.target.value) || (isIntegerParam(param) ? 1 : 0.1))" :step="isIntegerParam(param) ? '1' : '0.1'" :min="isIntegerParam(param) ? '1' : '0.1'" class="w-full p-2 bg-gray-600 border border-gray-500 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-50">
                                     </div>
                                 </div>
                                 <div class="mt-2 text-xs text-gray-400">
@@ -150,7 +150,7 @@
             </div>
 
             <!-- 階段3: 優化進度 -->
-            <div x-show="optimizationStep == 3" class="space-y-6" x-init="console.log('Stage 3 init, optimizationStep:', optimizationStep, 'type:', typeof optimizationStep, 'isOptimizing:', isOptimizing)" x-effect="console.log('Stage 3 effect, optimizationStep:', optimizationStep, 'condition:', optimizationStep == 3, 'isOptimizing:', isOptimizing)">
+            <div x-show="optimizationStep == 3" class="space-y-6">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-300 mb-4">優化進度</h3>
                     <div class="bg-gray-700 rounded-lg p-4">
@@ -175,18 +175,18 @@
             </div>
 
             <!-- 階段4: 優化結果 -->
-            <div x-show="parseInt(optimizationStep) === 4" class="space-y-6" x-init="console.log('Stage 4 init, optimizationStep:', optimizationStep, 'type:', typeof optimizationStep)" x-effect="console.log('Stage 4 effect, optimizationStep:', optimizationStep, 'condition:', parseInt(optimizationStep) === 4)">
+            <div x-show="parseInt(optimizationStep) === 4" class="space-y-6">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-300 mb-4">優化結果</h3>
 
                     <!-- 最佳參數組合 -->
-                    <div x-show="getBestResult()" class="bg-gray-700 rounded-lg p-4 mb-6" x-init="console.log('Best result div rendered', getBestResult())">
+                    <div x-show="getBestResult()" class="bg-gray-700 rounded-lg p-4 mb-6">
                         <h4 class="font-medium text-gray-200 mb-3">最佳參數組合</h4>
                         <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                             <template x-for="(value, param) in getBestParams()" :key="param">
-                                <div class="bg-gray-600 rounded p-3" x-init="console.log('Rendering param:', param, value)">
+                                <div class="bg-gray-600 rounded p-3">
                                     <div class="text-xs text-gray-400" x-text="getParamDisplayName(param)"></div>
-                                    <div class="text-sm text-gray-200 font-medium" x-text="value"></div>
+                                    <div class="text-sm text-gray-200 font-medium" x-text="isIntegerParam(param) ? Math.round(value) : value.toFixed(2)"></div>
                                 </div>
                             </template>
                         </div>
