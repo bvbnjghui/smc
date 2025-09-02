@@ -108,90 +108,109 @@ export async function optimizeParameters(config, candles, baseSettings, analyses
         console.log(`組合數過多，自動使用隨機抽樣，縮減至 ${sampleSize} 個組合`);
     }
 
-    const results = [];
-    let bestResult = null;
-    let bestScore = -Infinity;
+    return new Promise((resolve, reject) => {
+        const results = [];
+        let bestResult = null;
+        let bestScore = -Infinity;
+        let currentIndex = 0;
+        const batchSize = 5; // 每批處理5個組合
 
-    for (let i = 0; i < combinations.length; i++) {
-        const params = combinations[i];
+        const processBatch = () => {
+            const endIndex = Math.min(currentIndex + batchSize, combinations.length);
 
-        // 合併參數到設定中，只覆蓋指定的優化參數
-        const testSettings = { ...baseSettings };
+            for (let i = currentIndex; i < endIndex; i++) {
+                const params = combinations[i];
 
-        // 只覆蓋用戶選擇要優化的參數
-        Object.keys(params).forEach(param => {
-            if (paramRanges[param]) { // 確保這是用戶選擇優化的參數
-                testSettings[param] = params[param];
+                // 合併參數到設定中，只覆蓋指定的優化參數
+                const testSettings = { ...baseSettings };
+
+                // 只覆蓋用戶選擇要優化的參數
+                Object.keys(params).forEach(param => {
+                    if (paramRanges[param]) { // 確保這是用戶選擇優化的參數
+                        testSettings[param] = params[param];
+                    }
+                });
+
+                try {
+                    // 執行回測
+                    const backtestParams = {
+                        candles,
+                        settings: testSettings,
+                        analyses,
+                        htfAnalyses
+                    };
+
+                    const backtestResult = runBacktestSimulation(backtestParams);
+
+                    // 計算優化分數
+                    const score = calculateOptimizationScore(backtestResult, optimizationTarget);
+
+                    const result = {
+                        params,
+                        results: backtestResult,
+                        score,
+                        combinationIndex: i
+                    };
+
+                    results.push(result);
+
+                    // 更新最佳結果
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestResult = result;
+                    }
+
+                } catch (error) {
+                    console.error(`參數組合 ${i} 測試失敗:`, params, error);
+                    // 繼續下一個組合
+                }
             }
-        });
 
-        try {
-            // 執行回測
-            const backtestParams = {
-                candles,
-                settings: testSettings,
-                analyses,
-                htfAnalyses
-            };
-
-            const backtestResult = runBacktestSimulation(backtestParams);
-
-            // 計算優化分數
-            const score = calculateOptimizationScore(backtestResult, optimizationTarget);
-
-            const result = {
-                params,
-                results: backtestResult,
-                score,
-                combinationIndex: i
-            };
-
-            results.push(result);
-
-            // 更新最佳結果
-            if (score > bestScore) {
-                bestScore = score;
-                bestResult = result;
-            }
+            currentIndex = endIndex;
 
             // 回報進度
             if (onProgress) {
-                const progress = ((i + 1) / combinations.length) * 100;
+                const progress = (currentIndex / combinations.length) * 100;
                 onProgress({
                     progress,
-                    currentCombination: i + 1,
+                    currentCombination: currentIndex,
                     totalCombinations: combinations.length,
-                    currentParams: params,
-                    currentScore: score,
+                    currentParams: combinations[Math.min(currentIndex - 1, combinations.length - 1)]?.params || {},
+                    currentScore: results[results.length - 1]?.score || 0,
                     bestScore
                 });
             }
 
-        } catch (error) {
-            console.error(`參數組合 ${i} 測試失敗:`, params, error);
-            // 繼續下一個組合
-        }
-    }
+            // 檢查是否完成
+            if (currentIndex >= combinations.length) {
+                // 按分數排序結果
+                results.sort((a, b) => b.score - a.score);
 
-    // 按分數排序結果
-    results.sort((a, b) => b.score - a.score);
+                const optimizationResults = {
+                    results,
+                    bestResult,
+                    totalCombinations: combinations.length,
+                    optimizationTarget,
+                    paramRanges,
+                    timestamp: new Date().toISOString()
+                };
 
-    const optimizationResults = {
-        results,
-        bestResult,
-        totalCombinations: combinations.length,
-        optimizationTarget,
-        paramRanges,
-        timestamp: new Date().toISOString()
-    };
+                console.log('參數優化完成', {
+                    bestScore,
+                    bestParams: bestResult?.params,
+                    totalTests: results.length
+                });
 
-    console.log('參數優化完成', {
-        bestScore,
-        bestParams: bestResult?.params,
-        totalTests: results.length
+                resolve(optimizationResults);
+            } else {
+                // 繼續處理下一批，使用 setTimeout 讓出控制權給UI
+                setTimeout(processBatch, 10);
+            }
+        };
+
+        // 開始處理第一批
+        processBatch();
     });
-
-    return optimizationResults;
 }
 
 /**

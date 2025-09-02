@@ -86,7 +86,7 @@ const appComponent = () => ({
 
     // --- 參數優化狀態 ---
     isOptimizationModalOpen: false,
-    optimizationStep: 1,
+    optimizationStep: 1, // 確保是數字類型
     selectedParams: [],
     selectedParamGroups: [],
     paramRanges: {},
@@ -306,7 +306,9 @@ const appComponent = () => ({
         this.isOptimizing = false;
         this.optimizationProgress = 0;
         this.currentTestCombination = 0;
+        this.currentTestCount = 0;
         this.totalTestCombinations = 0;
+        this.totalTestCount = 0;
         this.optimizationStep = 2; // 返回到設定階段
         console.log('Optimization cancelled, step set to:', this.optimizationStep);
     },
@@ -403,6 +405,14 @@ const appComponent = () => ({
             if (newParams && newParams.length > 0) {
                 this.ensureParamRangesIntegrity();
             }
+
+            // 更新參數組的選擇狀態
+            this.updateParamGroupsSelection();
+        });
+
+        // 監聽參數組的選擇變化
+        this.$watch('selectedParamGroups', (newGroups, oldGroups) => {
+            this.handleParamGroupSelection(newGroups, oldGroups);
         });
 
         this.fetchData();
@@ -601,6 +611,9 @@ const appComponent = () => ({
         this.paramSensitivity = {};
         this.optimizationRecommendations = [];
         this.isOptimizationModalOpen = true;
+
+        // 初始化參數組選擇狀態
+        this.updateParamGroupsSelection();
     },
 
     startOptimization() {
@@ -634,110 +647,155 @@ const appComponent = () => ({
         this.optimizationStep = 3; // 設置為進度階段
         this.optimizationProgress = 0;
         console.log('optimizationStep is now:', this.optimizationStep);
-        this.currentTestCount = 0;
-        this.currentTestCombination = 0;
-        this.totalTestCombinations = 0;
-        this.currentBestScore = 0;
-        this.currentTestParams = null;
-        this.estimatedTimeRemaining = '';
 
-        // 準備優化配置
-        const paramRanges = {};
-        this.selectedParams.forEach(param => {
-            if (this.paramRanges[param]) {
-                paramRanges[param] = this.paramRanges[param];
-            } else {
-                console.warn(`參數 ${param} 沒有範圍設定，使用預設值`);
-                paramRanges[param] = { min: 0, max: 10, step: 1 };
-            }
-        });
+        // 強制觸發UI更新並添加小延遲確保渲染
+        this.$nextTick(() => {
+            console.log('UI updated, optimizationStep:', this.optimizationStep, 'isOptimizing:', this.isOptimizing);
+            // 使用setTimeout確保UI完全渲染，然後執行優化邏輯
+            setTimeout(() => {
+                console.log('Starting optimization after UI update');
 
-        const config = {
-            paramRanges,
-            optimizationTarget: this.optimizationTarget,
-            maxIterations: this.optimizationAlgorithm === 'random' ? this.maxIterations : (this.calculateTotalCombinations() > 10000 ? 1000 : undefined)
-        };
+                // 初始化優化變數
+                this.currentTestCount = 0;
+                this.currentTestCombination = 0;
+                this.totalTestCombinations = 0;
+                this.currentBestScore = 0;
+                this.currentTestParams = null;
+                this.estimatedTimeRemaining = '';
 
-        // 準備分析數據
-        const analysisSettings = {
-            enableTrendFilter: this.enableTrendFilter,
-            emaPeriod: this.emaPeriod,
-            enableATR: this.enableATR,
-            atrPeriod: this.atrPeriod,
-        };
-        const analyses = analyzeAll(this.currentCandles, analysisSettings);
-
-        let htfAnalyses = null;
-        if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
-            htfAnalyses = analyzeAll(this.higherTimeframeCandles, { enableTrendFilter: false, enableATR: false });
-        }
-
-        // 創建完整的 baseSettings，確保包含所有必要的屬性
-        const baseSettings = {
-            // 從當前實例複製所有屬性
-            ...this,
-            // 確保關鍵屬性存在
-            entryStrategy: this.entryStrategy || 'reversal_confirmation',
-            htfBias: this.htfBias || 'both',
-            investmentAmount: this.investmentAmount || 10000,
-            riskPerTrade: this.riskPerTrade || 1,
-            rrRatio: this.rrRatio || 2,
-            rrRatioTP2: this.rrRatioTP2 || 3,
-            enableBreakeven: this.enableBreakeven !== undefined ? this.enableBreakeven : true,
-            setupExpirationCandles: this.setupExpirationCandles || 30,
-            enableKillzoneFilter: this.enableKillzoneFilter || false,
-            useLondonKillzone: this.useLondonKillzone || true,
-            useNewYorkKillzone: this.useNewYorkKillzone || true
-        };
-
-        // 設置總測試組合數
-        this.totalTestCombinations = this.optimizationAlgorithm === 'random'
-            ? this.maxIterations
-            : Math.min(this.calculateTotalCombinations(), 10000);
-
-        // 開始優化
-        const startTime = Date.now();
-        let lastProgressUpdate = startTime;
-
-        optimizeParameters(
-            config,
-            this.currentCandles,
-            baseSettings,
-            analyses,
-            htfAnalyses,
-            (progress) => {
-                this.optimizationProgress = progress.progress;
-                this.currentTestCount = progress.currentCombination;
-                this.currentTestCombination = progress.currentCombination;
-                this.totalTestCount = progress.totalCombinations;
-                this.currentBestScore = progress.bestScore;
-                this.currentTestParams = progress.currentParams;
-
-                // 估算剩餘時間
-                const currentTime = Date.now();
-                if (currentTime - lastProgressUpdate > 1000) { // 每秒更新一次
-                    const elapsed = (currentTime - startTime) / 1000;
-                    const progressRatio = progress.progress / 100;
-                    if (progressRatio > 0) {
-                        const totalEstimated = elapsed / progressRatio;
-                        const remaining = totalEstimated - elapsed;
-                        this.estimatedTimeRemaining = formatTime(remaining);
+                // 準備優化配置
+                const paramRanges = {};
+                this.selectedParams.forEach(param => {
+                    if (this.paramRanges[param]) {
+                        paramRanges[param] = this.paramRanges[param];
+                    } else {
+                        console.warn(`參數 ${param} 沒有範圍設定，使用預設值`);
+                        paramRanges[param] = { min: 0, max: 10, step: 1 };
                     }
-                    lastProgressUpdate = currentTime;
+                });
+
+                // 計算實際的總測試組合數
+                const totalCombinations = this.calculateTotalCombinations();
+                let actualTotalTests;
+
+                if (this.optimizationAlgorithm === 'random') {
+                    // 隨機模式：使用 maxIterations，但如果組合數過多，自動調整
+                    actualTotalTests = this.maxIterations;
+                    if (totalCombinations > 10000) {
+                        actualTotalTests = Math.min(1000, this.maxIterations);
+                    }
+                } else {
+                    // 網格模式：使用實際組合數，但上限為10000
+                    actualTotalTests = Math.min(totalCombinations, 10000);
                 }
-            }
-        ).then(results => {
-            this.optimizationResults = results;
-            const processedResults = processOptimizationResults(results);
-            this.paramSensitivity = processedResults.statistics.paramCorrelations;
-            this.optimizationRecommendations = generateOptimizationRecommendations(processedResults);
-            this.optimizationStep = 4;
-            console.log('Optimization completed, step set to:', this.optimizationStep);
-        }).catch(error => {
-            console.error('參數優化失敗:', error);
-            this.error = `參數優化失敗: ${error.message}`;
-        }).finally(() => {
-            this.isOptimizing = false;
+
+                const config = {
+                    paramRanges,
+                    optimizationTarget: this.optimizationTarget,
+                    maxIterations: this.optimizationAlgorithm === 'random' ? actualTotalTests : (this.calculateTotalCombinations() > 10000 ? 1000 : undefined)
+                };
+
+                // 準備分析數據
+                const analysisSettings = {
+                    enableTrendFilter: this.enableTrendFilter,
+                    emaPeriod: this.emaPeriod,
+                    enableATR: this.enableATR,
+                    atrPeriod: this.atrPeriod,
+                };
+                const analyses = analyzeAll(this.currentCandles, analysisSettings);
+
+                let htfAnalyses = null;
+                if (this.enableMTA && this.higherTimeframeCandles.length > 0) {
+                    htfAnalyses = analyzeAll(this.higherTimeframeCandles, { enableTrendFilter: false, enableATR: false });
+                }
+
+                // 創建完整的 baseSettings，確保包含所有必要的屬性
+                const baseSettings = {
+                    // 從當前實例複製所有屬性
+                    ...this,
+                    // 確保關鍵屬性存在
+                    entryStrategy: this.entryStrategy || 'reversal_confirmation',
+                    htfBias: this.htfBias || 'both',
+                    investmentAmount: this.investmentAmount || 10000,
+                    riskPerTrade: this.riskPerTrade || 1,
+                    rrRatio: this.rrRatio || 2,
+                    rrRatioTP2: this.rrRatioTP2 || 3,
+                    enableBreakeven: this.enableBreakeven !== undefined ? this.enableBreakeven : true,
+                    setupExpirationCandles: this.setupExpirationCandles || 30,
+                    enableKillzoneFilter: this.enableKillzoneFilter || false,
+                    useLondonKillzone: this.useLondonKillzone || true,
+                    useNewYorkKillzone: this.useNewYorkKillzone || true
+                };
+
+                this.totalTestCombinations = actualTotalTests;
+
+                // 確保初始進度正確顯示
+                this.optimizationProgress = 0;
+                this.currentTestCount = 0;
+                this.currentTestCombination = 0;
+                this.totalTestCount = this.totalTestCombinations;
+                this.currentBestScore = 0;
+                this.estimatedTimeRemaining = '計算中...';
+
+                // 開始優化
+                const startTime = Date.now();
+                let lastProgressUpdate = 0; // 設置為0確保第一個進度更新立即發生
+
+                optimizeParameters(
+                    config,
+                    this.currentCandles,
+                    baseSettings,
+                    analyses,
+                    htfAnalyses,
+                    (progress) => {
+                        // 更新進度狀態
+                        this.optimizationProgress = progress.progress;
+                        this.currentTestCount = progress.currentCombination;
+                        this.currentTestCombination = progress.currentCombination;
+                        this.totalTestCount = progress.totalCombinations;
+                        this.currentBestScore = progress.bestScore;
+                        this.currentTestParams = progress.currentParams;
+
+                        // 估算剩餘時間 - 更頻繁地更新
+                        const currentTime = Date.now();
+                        if (lastProgressUpdate === 0 || currentTime - lastProgressUpdate > 100) { // 第一個調用或每100ms更新一次
+                            const elapsed = (currentTime - startTime) / 1000;
+                            const progressRatio = progress.progress / 100;
+                            if (progressRatio > 0) {
+                                const totalEstimated = elapsed / progressRatio;
+                                const remaining = totalEstimated - elapsed;
+                                this.estimatedTimeRemaining = formatTime(Math.max(0, remaining));
+                            } else {
+                                this.estimatedTimeRemaining = '計算中...';
+                            }
+                            lastProgressUpdate = currentTime;
+                        }
+
+                        // 強制觸發UI更新
+                        this.$nextTick(() => {
+                            // 確保UI已經更新
+                        });
+                    }
+                ).then(results => {
+                    // 確保進度完成
+                    this.optimizationProgress = 100;
+                    this.currentTestCount = this.totalTestCount;
+                    this.currentTestCombination = this.totalTestCount;
+                    this.estimatedTimeRemaining = '完成';
+
+                    this.optimizationResults = results;
+                    const processedResults = processOptimizationResults(results);
+                    this.paramSensitivity = processedResults.statistics.paramCorrelations;
+                    this.optimizationRecommendations = generateOptimizationRecommendations(processedResults);
+                    this.optimizationStep = 4;
+                    console.log('Optimization completed, step set to:', this.optimizationStep);
+                }).catch(error => {
+                    console.error('參數優化失敗:', error);
+                    this.error = `參數優化失敗: ${error.message}`;
+                }).finally(() => {
+                    this.isOptimizing = false;
+                });
+            }, 50);
         });
     },
 
@@ -785,6 +843,57 @@ const appComponent = () => ({
             link.click();
             document.body.removeChild(link);
         }
+    },
+
+    // 處理參數組的全選邏輯
+    updateParamGroupsSelection() {
+        // 根據選中的參數更新參數組的選擇狀態
+        const newSelectedGroups = [];
+
+        Object.entries(PARAM_GROUPS).forEach(([groupKey, group]) => {
+            const groupParams = group.params;
+            const selectedGroupParams = groupParams.filter(param => this.selectedParams.includes(param));
+
+            // 如果組內所有參數都被選中，則選中參數組
+            if (selectedGroupParams.length === groupParams.length && selectedGroupParams.length > 0) {
+                if (!newSelectedGroups.includes(groupKey)) {
+                    newSelectedGroups.push(groupKey);
+                }
+            }
+        });
+
+        // 只在有變化時更新，避免無限循環
+        if (JSON.stringify(this.selectedParamGroups.sort()) !== JSON.stringify(newSelectedGroups.sort())) {
+            this.selectedParamGroups = newSelectedGroups;
+        }
+    },
+
+    // 處理參數組選擇變化
+    handleParamGroupSelection(newGroups, oldGroups) {
+        // 找出新增的組
+        const addedGroups = newGroups.filter(group => !oldGroups.includes(group));
+        // 找出移除的組
+        const removedGroups = oldGroups.filter(group => !newGroups.includes(group));
+
+        // 處理新增的組：選中組內所有參數
+        addedGroups.forEach(groupKey => {
+            const group = PARAM_GROUPS[groupKey];
+            if (group) {
+                group.params.forEach(param => {
+                    if (!this.selectedParams.includes(param)) {
+                        this.selectedParams.push(param);
+                    }
+                });
+            }
+        });
+
+        // 處理移除的組：取消選中組內所有參數
+        removedGroups.forEach(groupKey => {
+            const group = PARAM_GROUPS[groupKey];
+            if (group) {
+                this.selectedParams = this.selectedParams.filter(param => !group.params.includes(param));
+            }
+        });
     },
 });
 

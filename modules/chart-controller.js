@@ -29,7 +29,7 @@ export function setupChart(containerId, onVisibleRangeChanged) {
         return {};
     }
 
-    chart = LightweightCharts.createChart(container, {
+    chart = window.LightweightCharts.createChart(container, {
         layout: { background: { color: '#1f2937' }, textColor: '#d1d5db' },
         grid: { vertLines: { color: '#374151' }, horzLines: { color: '#374151' } },
         handleScroll: { mouseWheel: true },
@@ -147,7 +147,7 @@ function drawHtfZone(price1, price2, color, title) {
         price: 0,
         color: color,
         lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Solid,
+        lineStyle: window.LightweightCharts.LineStyle.Solid,
         axisLabelVisible: true,
         title: `HTF ${title}`,
         axisLabelColor: '#1f2937',
@@ -196,13 +196,13 @@ export function redrawAllAnalyses(analyses, settings, htfAnalyses = null) {
     const breakerBlocksToDraw = showMitigated ? analyses.breakerBlocks : analyses.breakerBlocks.filter(bb => !bb.isMitigated);
 
     if (showFVGs && fvgsToDraw) {
-        fvgsToDraw.forEach(fvg => drawZone(fvg.top, fvg.bottom, fvg.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', 'FVG', LightweightCharts.LineStyle.Dashed));
+        fvgsToDraw.forEach(fvg => drawZone(fvg.top, fvg.bottom, fvg.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', 'FVG', window.LightweightCharts.LineStyle.Dashed));
     }
     if (showOrderBlocks && orderBlocksToDraw) {
-        orderBlocksToDraw.forEach(ob => drawZone(ob.top, ob.bottom, ob.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', 'OB', LightweightCharts.LineStyle.Solid, 2));
+        orderBlocksToDraw.forEach(ob => drawZone(ob.top, ob.bottom, ob.type === 'bullish' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)', 'OB', window.LightweightCharts.LineStyle.Solid, 2));
     }
     if (showBreakerBlocks && breakerBlocksToDraw) {
-        breakerBlocksToDraw.forEach(bb => drawZone(bb.top, bb.bottom, 'rgba(139, 92, 246, 0.8)', 'Breaker', LightweightCharts.LineStyle.Solid, 2));
+        breakerBlocksToDraw.forEach(bb => drawZone(bb.top, bb.bottom, 'rgba(139, 92, 246, 0.8)', 'Breaker', window.LightweightCharts.LineStyle.Solid, 2));
     }
     
     if (showLiquidity && analyses.liquidityGrabs) {
@@ -216,14 +216,14 @@ export function redrawAllAnalyses(analyses, settings, htfAnalyses = null) {
     if (showBOS && analyses.bosEvents) {
          analyses.bosEvents.forEach(bos => {
             const color = bos.marker.position === 'belowBar' ? 'rgba(59, 130, 246, 0.9)' : 'rgba(239, 68, 68, 0.9)'; 
-            drawZone(bos.price, bos.price, color, 'BOS', LightweightCharts.LineStyle.Dotted, 2);
+            drawZone(bos.price, bos.price, color, 'BOS', window.LightweightCharts.LineStyle.Dotted, 2);
             markers.push(bos.marker);
         });
     }
 
     if (showCHoCH && analyses.chochEvents) {
          analyses.chochEvents.forEach(choch => {
-            drawZone(choch.price, choch.price, 'rgba(245, 158, 11, 0.9)', 'CHoCH', LightweightCharts.LineStyle.Dotted, 2);
+            drawZone(choch.price, choch.price, 'rgba(245, 158, 11, 0.9)', 'CHoCH', window.LightweightCharts.LineStyle.Dotted, 2);
             markers.push(choch.marker);
         });
     }

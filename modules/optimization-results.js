@@ -1,3 +1,5 @@
+import { getParamDisplayName } from './optimization-config.js';
+
 // smc/modules/optimization-results.js
 
 /**
@@ -100,13 +102,32 @@ function analyzeParameterCorrelations(results) {
         const paramValues = results.map(r => r.params[paramName]);
         const scores = results.map(r => r.score);
 
+        // 檢查參數值是否有變化
+        const min = Math.min(...paramValues);
+        const max = Math.max(...paramValues);
+        const range = max - min;
+
+        // 如果參數值沒有變化，無法計算相關性
+        if (range === 0) {
+            correlations[paramName] = {
+                correlation: 0,
+                strength: 0,
+                direction: 'neutral',
+                interpretation: '參數值無變化'
+            };
+            return;
+        }
+
         const correlation = calculateCorrelation(paramValues, scores);
 
+        // 確保相關係數有效
+        const validCorrelation = isNaN(correlation) || !isFinite(correlation) ? 0 : correlation;
+
         correlations[paramName] = {
-            correlation,
-            strength: Math.abs(correlation),
-            direction: correlation > 0 ? 'positive' : 'negative',
-            interpretation: interpretCorrelation(correlation)
+            correlation: validCorrelation,
+            strength: Math.abs(validCorrelation),
+            direction: validCorrelation > 0 ? 'positive' : 'negative',
+            interpretation: interpretCorrelation(validCorrelation)
         };
     });
 
@@ -121,6 +142,16 @@ function analyzeParameterCorrelations(results) {
  */
 function calculateCorrelation(x, y) {
     const n = x.length;
+
+    // 檢查數據長度
+    if (n < 2) return 0;
+
+    // 檢查數據是否有效
+    if (!x.every(val => typeof val === 'number' && isFinite(val)) ||
+        !y.every(val => typeof val === 'number' && isFinite(val))) {
+        return 0;
+    }
+
     const sumX = x.reduce((a, b) => a + b, 0);
     const sumY = y.reduce((a, b) => a + b, 0);
     const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
@@ -130,7 +161,15 @@ function calculateCorrelation(x, y) {
     const numerator = n * sumXY - sumX * sumY;
     const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
 
-    return denominator === 0 ? 0 : numerator / denominator;
+    // 檢查分母是否為 0 或 NaN
+    if (denominator === 0 || isNaN(denominator) || !isFinite(denominator)) {
+        return 0;
+    }
+
+    const correlation = numerator / denominator;
+
+    // 檢查結果是否有效
+    return isNaN(correlation) || !isFinite(correlation) ? 0 : correlation;
 }
 
 /**
@@ -234,10 +273,11 @@ export function generateOptimizationRecommendations(processedResults) {
             .forEach(([param, data]) => {
                 if (data.strength > 0.5) {
                     const direction = data.direction === 'positive' ? '增加' : '減少';
+                    const displayName = getParamDisplayName(param);
                     recommendations.push({
                         type: 'parameter',
                         priority: 'high',
-                        message: `${direction} ${param} 可能會顯著改善表現 (${data.interpretation})`,
+                        message: `${direction} ${displayName} 可能會顯著改善表現 (${data.interpretation})`,
                         param,
                         correlation: data.correlation
                     });

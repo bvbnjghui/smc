@@ -150,19 +150,19 @@
             </div>
 
             <!-- 階段3: 優化進度 -->
-            <div x-show="parseInt(optimizationStep) === 3" class="space-y-6" x-init="console.log('Stage 3 init, optimizationStep:', optimizationStep, 'type:', typeof optimizationStep)" x-effect="console.log('Stage 3 effect, optimizationStep:', optimizationStep, 'condition:', parseInt(optimizationStep) === 3)">
+            <div x-show="optimizationStep == 3" class="space-y-6" x-init="console.log('Stage 3 init, optimizationStep:', optimizationStep, 'type:', typeof optimizationStep, 'isOptimizing:', isOptimizing)" x-effect="console.log('Stage 3 effect, optimizationStep:', optimizationStep, 'condition:', optimizationStep == 3, 'isOptimizing:', isOptimizing)">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-300 mb-4">優化進度</h3>
                     <div class="bg-gray-700 rounded-lg p-4">
                         <div class="flex items-center justify-between mb-2">
                             <span class="text-sm text-gray-400">進度</span>
-                            <span class="text-sm text-gray-200" x-text="optimizationProgress + '%'"></span>
+                            <span class="text-sm text-gray-200" x-text="Math.round(optimizationProgress) + '%'"></span>
                         </div>
                         <div class="w-full bg-gray-600 rounded-full h-2">
-                            <div class="bg-teal-500 h-2 rounded-full transition-all duration-300" :style="'width: ' + optimizationProgress + '%'"></div>
+                            <div class="bg-teal-500 h-2 rounded-full transition-all duration-300" :style="'width: ' + Math.round(optimizationProgress) + '%'"></div>
                         </div>
                         <div class="mt-2 text-xs text-gray-400">
-                            <span x-text="'當前測試: ' + currentTestCombination + ' / ' + totalTestCombinations"></span>
+                            <span x-text="'當前測試: ' + currentTestCombination + ' / ' + totalTestCount"></span>
                         </div>
                     </div>
                 </div>
